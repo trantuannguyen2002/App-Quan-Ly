@@ -55,7 +55,7 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 
 ### Chạy trên Vercel
 
-Vercel triển khai API bằng hàm serverless trong `api/[...path].js`; chỉ tải các tệp giao diện tĩnh lên sẽ khiến `/api/login` trả về 404.
+Vercel dùng hàm serverless trong `api/[...path].js`. Rewrite trong `vercel.json` chuyển các API nhiều cấp `/api/123host/...` tới proxy 123HOST.
 
 1. Thêm biến môi trường `DEVHQ_SESSION_SECRET` trong **Vercel → Project → Settings → Environment Variables**. Dùng giá trị ngẫu nhiên dài ít nhất 32 ký tự; có thể tạo bằng PowerShell:
 

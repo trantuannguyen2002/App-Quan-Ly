@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/123host/(.*)",
+      "destination": "/api/123host?path=$1"
+    }
+  ]
+}
