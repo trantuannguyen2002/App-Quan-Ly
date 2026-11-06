@@ -222,6 +222,25 @@
           });
       }
 
+      function getAccountName() {
+        if (!apiState.authenticated) return "Sarah Anderson";
+        const client = apiState.client;
+        const fullName = [client?.firstname, client?.lastname].filter((part) => typeof part === "string" && part.trim()).join(" ").trim();
+        if (fullName) return fullName;
+        const displayName = [client?.fullname, client?.name].find((name) => typeof name === "string" && name.trim());
+        if (displayName) return displayName.trim();
+        const email = typeof client?.email === "string" ? client.email.trim() : "";
+        return email ? email.split("@")[0] : "Tài khoản 123HOST";
+      }
+
+      function getAccountInitials() {
+        if (!apiState.authenticated) return "SA";
+        const name = getAccountName();
+        return name === "Tài khoản 123HOST"
+          ? "12"
+          : name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]).join("").toLocaleUpperCase("vi-VN") || "12";
+      }
+
       function getReadableApiNotifications() {
         const ignored = /^(thông báo từ 123host|notification from 123host|123host notification)$/i;
         const seen = new Set();
@@ -262,7 +281,7 @@
         today.setHours(0, 0, 0, 0);
         const late = state.projects.filter((project) => project.status === "running" && project.deadlineISO && new Date(`${project.deadlineISO}T00:00:00`) < today).length;
         const warningDomains = getDomainAlerts();
-        return `${heading("Chào buổi sáng, Sarah!", "Đây là tình hình dự án và dịch vụ của bạn hôm nay.")}
+        return `${heading(`Chào buổi sáng, ${esc(getAccountName())}!`, "Đây là tình hình dự án và dịch vụ của bạn hôm nay.")}
           <section class="grid stats-grid">${statCard("code","Dự án đang chạy",String(running).padStart(2,"0"),"Đang thực hiện")}${statCard("check","Đã hoàn thành",String(completed).padStart(2,"0"),"Tổng dự án")}${statCard("clock","Dự án quá hạn",String(late).padStart(2,"0"),"Cần chú ý")}${statCard("globe",apiState.authenticated ? "Tên miền 123HOST" : "Tên miền mẫu",String((apiState.authenticated ? apiState.domains : state.domains).length).padStart(2,"0"),apiState.authenticated ? "Đã đồng bộ" : "Dữ liệu mẫu")}</section>
           <div class="grid home-grid">
             <section class="panel">${section("Dự án đang chạy","Theo dõi tiến độ công việc của nhóm.",`<button class="link-button" type="button" data-route="projects">Tất cả dự án →</button>`)}<div class="project-list">${state.projects.filter((project) => project.status === "running").slice(0,3).map((project) => projectCard(project)).join("") || `<div class="empty-state">Chưa có dự án đang chạy.<br>Tạo một dự án mới để bắt đầu.</div>`}<button class="button primary" type="button" data-action="new-project">＋ &nbsp; Tạo Dự Án Mới</button></div></section>
@@ -357,10 +376,10 @@
         ];
         return `${heading("Cài Đặt Hệ Thống","Quản lý tài khoản và tùy chỉnh không gian làm việc.")}
           <section class="panel">${section("Kết nối tài khoản 123HOST","Đăng nhập để đồng bộ tên miền, dịch vụ, hóa đơn và thông tin tài khoản.",`<span class="status-pill ${apiState.loading ? "orange" : apiState.authenticated ? "green" : "orange"}">${apiState.loading ? "Đang đồng bộ" : apiState.authenticated ? "Đã kết nối" : "Chưa kết nối"}</span>`)}
-            ${apiState.authenticated ? `<div class="card-heading"><div><div class="card-title">${esc(apiState.client ? `${apiState.client.firstname || ""} ${apiState.client.lastname || ""}`.trim() || apiState.client.email : "Tài khoản 123HOST")}</div><div class="card-caption">${esc(apiState.client?.email || (apiState.loading ? "Đang tải dữ liệu tài khoản..." : "Đã đăng nhập · Dữ liệu được tải trực tiếp"))}</div></div><div style="display:flex;gap:8px"><button class="button small" type="button" data-action="refresh-api" ${apiState.loading ? "disabled" : ""}>${apiState.loading ? "Đang đồng bộ..." : "Đồng bộ"}</button><button class="button small" type="button" data-action="disconnect-api">Ngắt kết nối</button></div></div>` : `<div class="card-heading"><div class="card-caption">Thông tin đăng nhập được gửi qua localhost và không lưu trong trình duyệt.</div><button class="button primary" type="button" data-action="connect-api">Kết Nối 123HOST</button></div>`}
+            ${apiState.authenticated ? `<div class="card-heading"><div><div class="card-title">${esc(getAccountName())}</div><div class="card-caption">${esc(apiState.client?.email || (apiState.loading ? "Đang tải dữ liệu tài khoản..." : "Đã đăng nhập · Dữ liệu được tải trực tiếp"))}</div></div><div style="display:flex;gap:8px"><button class="button small" type="button" data-action="refresh-api" ${apiState.loading ? "disabled" : ""}>${apiState.loading ? "Đang đồng bộ..." : "Đồng bộ"}</button><button class="button small" type="button" data-action="disconnect-api">Ngắt kết nối</button></div></div>` : `<div class="card-heading"><div class="card-caption">Thông tin đăng nhập được gửi qua localhost và không lưu trong trình duyệt.</div><button class="button primary" type="button" data-action="connect-api">Kết Nối 123HOST</button></div>`}
             <div class="card-caption" style="margin-top:12px">${apiState.domains.length} tên miền đã đồng bộ${apiState.servicesLoaded || apiState.invoicesLoaded ? ` · ${apiState.services.length} dịch vụ · ${apiState.invoices.length} hóa đơn` : " · Dịch vụ và hóa đơn sẽ tải khi mở Hosting"}</div>
           </section>
-          <section class="panel">${section("Tài khoản",apiState.authenticated ? `${apiState.client?.email || "Tài khoản 123HOST"} · Tài khoản đã kết nối` : "Sarah Anderson · Quản trị viên")}<button class="setting-card" type="button" data-action="profile"><span class="avatar">${apiState.authenticated && !apiState.client ? "12" : "SA"}</span><span class="setting-copy"><span class="setting-title">${esc(apiState.client ? `${apiState.client.firstname || ""} ${apiState.client.lastname || ""}`.trim() || apiState.client.email || "Tài khoản 123HOST" : apiState.authenticated ? "Tài khoản 123HOST" : "Sarah Anderson")}</span><span class="setting-description" style="display:block">${esc(apiState.client?.email || (apiState.authenticated ? "Đang tải thông tin tài khoản..." : "Quản trị viên · Gói chuyên nghiệp"))}</span></span><span class="chevron">›</span></button></section>
+          <section class="panel">${section("Tài khoản",apiState.authenticated ? `${apiState.client?.email || "Tài khoản 123HOST"} · Tài khoản đã kết nối` : "Sarah Anderson · Quản trị viên")}<button class="setting-card" type="button" data-action="profile"><span class="avatar">${getAccountInitials()}</span><span class="setting-copy"><span class="setting-title">${esc(getAccountName())}</span><span class="setting-description" style="display:block">${esc(apiState.client?.email || (apiState.authenticated ? "Đang tải thông tin tài khoản..." : "Quản trị viên · Gói chuyên nghiệp"))}</span></span><span class="chevron">›</span></button></section>
           <section class="panel">${section("Tùy chọn hệ thống","Chọn một mục để xem và cập nhật cài đặt.")}<div class="settings-list">${settings.map(([symbol,title,description,key]) => `<button class="setting-card" type="button" data-action="setting" data-key="${key}"><span class="setting-icon">${icon(symbol,17)}</span><span class="setting-copy"><span class="setting-title">${title}</span><span class="setting-description" style="display:block">${description}</span></span><span class="chevron">›</span></button>`).join("")}</div></section>
           <section class="panel">${section("Gia hạn tên miền","Nhắc nhở trước khi dịch vụ của bạn hết hạn.")}<button class="setting-card" type="button" data-action="toggle-auto-renew"><span class="setting-icon">${icon("globe",17)}</span><span class="setting-copy"><span class="setting-title">Nhắc gia hạn tên miền</span><span class="setting-description" style="display:block">${state.autoRenew ? "Bạn sẽ nhận nhắc nhở tự động." : "Bật nhắc nhở trước ngày hết hạn."}</span></span><span class="status-pill ${state.autoRenew ? "green" : ""}">${state.autoRenew ? "Đang bật" : "Đang tắt"}</span></button></section>`;
       }
@@ -440,18 +459,18 @@
         apiState.loading = true;
         render();
         const failures = [];
-        try {
-          await loadApiDomains();
-        } catch (error) {
-          failures.push(`domains: ${error.message}`);
-          apiState.domainError = error.message;
+        const [domainResult, detailsResult] = await Promise.allSettled([
+          loadApiDomains(),
+          apiRequest("/api/123host/details")
+        ]);
+        if (domainResult.status === "rejected") {
+          failures.push(`domains: ${domainResult.reason.message}`);
+          apiState.domainError = domainResult.reason.message;
         }
-        try {
-          const details = await apiRequest("/api/123host/details");
-          apiState.client = details.client || null;
-          render();
-        } catch (error) {
-          failures.push(`details: ${error.message}`);
+        if (detailsResult.status === "fulfilled") {
+          apiState.client = detailsResult.value.client || apiState.client;
+        } else {
+          failures.push(`details: ${detailsResult.reason.message}`);
         }
         apiState.loading = false;
         render();
@@ -543,7 +562,7 @@
         try {
           await apiRequest("/api/login", { method: "POST", body: { username: values.get("username"), password: values.get("password") } });
           apiState.authenticated = true;
-          apiState.client = null;
+          apiState.client = { email: String(values.get("username")).trim() };
           closeModal();
           render();
           notify("Đăng nhập 123HOST thành công. Đang đồng bộ dữ liệu...");
@@ -754,14 +773,8 @@
 
       function updateTopbar() {
         const client = apiState.client;
-        const name = client
-          ? `${client.firstname || ""} ${client.lastname || ""}`.trim() || client.email || "Tài khoản 123HOST"
-          : apiState.authenticated ? "Tài khoản 123HOST" : "Sarah Anderson";
-        const initials = apiState.authenticated
-          ? client && name !== "Tài khoản 123HOST"
-            ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]).join("").toLocaleUpperCase("vi-VN") || "12"
-            : "12"
-          : "SA";
+        const name = getAccountName();
+        const initials = getAccountInitials();
         const profileName = document.querySelector("[data-profile-name]");
         const profileRole = document.querySelector("[data-profile-role]");
         const profileAvatar = document.querySelector("[data-profile-avatar]");
@@ -980,9 +993,7 @@
           const server = state.vps.find((item) => item.id === id);
           if (server) openModal(server.name,"Thông tin máy chủ VPS.",`<div class="modal-message">Địa chỉ máy chủ: <strong>${esc(server.ip)}</strong><br>CPU đang dùng: <strong>${server.cpu}%</strong><br>RAM: <strong>${server.ram}GB / ${server.limit}GB</strong><br><br>Số liệu máy chủ mẫu, chưa đồng bộ với VPS thực tế.</div>`,"","",false);
         } else if (action === "profile") {
-          const name = apiState.client
-            ? `${apiState.client.firstname || ""} ${apiState.client.lastname || ""}`.trim() || apiState.client.email || "Tài khoản 123HOST"
-            : apiState.authenticated ? "Tài khoản 123HOST" : "Sarah Anderson";
+          const name = getAccountName();
           const email = apiState.client?.email || (apiState.authenticated ? "Đang đồng bộ thông tin tài khoản..." : "Quản trị viên · Không gian làm việc DevHQ");
           openModal("Tài Khoản Của Bạn","Thông tin tài khoản đang đăng nhập.",`<div class="modal-message"><strong>${esc(name)}</strong><br>${esc(email)}<br><br>${apiState.authenticated ? "Thông tin đồng bộ trực tiếp từ 123HOST." : "Dữ liệu hồ sơ mẫu."}</div>`,"","",false);
         }
@@ -1167,7 +1178,7 @@
 
       function showSetting(key) {
         const settings = {
-          account: ["Tài Khoản & Bảo Mật","Quản lý thông tin người dùng.",apiState.authenticated ? `Tên tài khoản: ${esc(apiState.client ? `${apiState.client.firstname || ""} ${apiState.client.lastname || ""}`.trim() || apiState.client.email || "Tài khoản 123HOST" : "Tài khoản 123HOST")}<br>Email: ${esc(apiState.client?.email || (apiState.loading ? "Đang đồng bộ..." : "Chưa tải được email tài khoản"))}<br><br>Thông tin hồ sơ được đồng bộ từ 123HOST.` : "Tên tài khoản: Sarah Anderson<br>Vai trò: Quản trị viên<br><br>Đây là tài khoản mẫu của ứng dụng."],
+          account: ["Tài Khoản & Bảo Mật","Quản lý thông tin người dùng.",apiState.authenticated ? `Tên tài khoản: ${esc(getAccountName())}<br>Email: ${esc(apiState.client?.email || (apiState.loading ? "Đang đồng bộ..." : "Chưa tải được email tài khoản"))}<br><br>Thông tin hồ sơ được đồng bộ từ 123HOST.` : "Tên tài khoản: Sarah Anderson<br>Vai trò: Quản trị viên<br><br>Đây là tài khoản mẫu của ứng dụng."],
           api: ["Cấu Hình API DirectAdmin","Quản lý kết nối máy chủ hosting.","Chưa kết nối DirectAdmin.<br>Để kết nối máy chủ thật, cần cấu hình API an toàn trên máy chủ backend; không nhập khóa bí mật vào ứng dụng trình duyệt."],
           vps: ["Liên Kết VPS","Danh sách máy chủ đã lưu trong ứng dụng.",`Hiện có ${state.vps.length} máy chủ VPS.<br>Địa chỉ IP và thông số đang là dữ liệu mẫu do bạn nhập.`],
           notifications: ["Tùy Chọn Thông Báo","Cài đặt nhận nhắc nhở dịch vụ.",`Trạng thái thông báo: <strong>${state.notifications ? "Đang bật" : "Đang tắt"}</strong>.<br>Nhắc gia hạn tên miền: <strong>${state.autoRenew ? "Đang bật" : "Đang tắt"}</strong>.`],

@@ -260,7 +260,9 @@ function Get-ApiRoute {
         try {
           $basicHeaders = @{ Authorization = (Get-ProviderAuthHeader -Session $basicSession) }
           $details = Invoke-RestMethod -Uri ($script:apiBase + "/details") -Method Get -Headers $basicHeaders -TimeoutSec 30 -ErrorAction Stop
-          $basicSession.client = $details.client
+          if ($details.client) {
+            $basicSession.client = $details.client
+          }
           $script:sessions[$SessionId] = $basicSession
           return @{ status = 200; body = @{ authenticated = $true; authType = "Basic" }; cookie = "devhq_session=$SessionId; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800" }
         } catch {
@@ -279,7 +281,7 @@ function Get-ApiRoute {
     if (-not $auth.token) {
       return @{ status = 502; body = @{ error = "123HOST không trả về mã xác thực. Hãy kiểm tra tài liệu API hoặc liên hệ nhà cung cấp." } }
     }
-    $session = @{ authType = "Bearer"; username = $null; password = $null; token = [string]$auth.token; refresh = [string]$auth.refresh; client = $null; lastActivity = $now }
+    $session = @{ authType = "Bearer"; username = $username.Trim(); password = $null; token = [string]$auth.token; refresh = [string]$auth.refresh; client = @{ email = $username.Trim() }; lastActivity = $now }
     $script:sessions[$SessionId] = $session
     return @{ status = 200; body = @{ authenticated = $true }; cookie = "devhq_session=$SessionId; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800" }
   }
@@ -327,7 +329,9 @@ function Get-ApiRoute {
     $value = Invoke-ProviderRequest -SessionId $SessionId -Method $Method -Path $providerRoutes[$Path].path
     if ($Path -eq "/api/123host/details") {
       $session = $script:sessions[$SessionId]
-      $session.client = $value.client
+      if ($value.client) {
+        $session.client = $value.client
+      }
       $script:sessions[$SessionId] = $session
     }
     return @{ status = 200; body = $value }

@@ -201,12 +201,12 @@ async function handleLogin(req, res, key) {
     });
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 429) throw error;
-    const session = { authType: "Basic", username, password, client: null };
+    const session = { authType: "Basic", username, password, client: { email: username } };
     try {
       const details = await providerFetch("/details", {
         headers: { Authorization: basicHeader(session) }
       });
-      session.client = details.client || null;
+      session.client = details.client || session.client;
       setSessionCookie(res, session, key);
       return { authenticated: true, authType: "Basic" };
     } catch (basicError) {
@@ -222,7 +222,7 @@ async function handleLogin(req, res, key) {
     authType: "Bearer",
     token: String(auth.token),
     refresh: auth.refresh ? String(auth.refresh) : null,
-    client: null
+    client: { email: username }
   }, key);
   return { authenticated: true };
 }
@@ -242,9 +242,10 @@ async function handleProviderRoute(req, res, key, session, path) {
   if (Object.hasOwn(fixedRoutes, path)) {
     const [providerPath, methods] = fixedRoutes[path];
     if (!methods.includes(method)) throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
+    const previousSession = JSON.stringify(session);
     const data = await providerRequest(session, providerPath);
-    if (path === "/api/123host/details") session.client = data.client || null;
-    setSessionCookie(res, session, key);
+    if (path === "/api/123host/details") session.client = data.client || session.client;
+    if (JSON.stringify(session) !== previousSession) setSessionCookie(res, session, key);
     return data;
   }
 
