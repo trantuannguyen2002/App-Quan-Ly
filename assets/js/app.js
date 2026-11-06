@@ -650,7 +650,7 @@
           openModal("Cần Chạy Máy Chủ Cục Bộ", "Để kết nối an toàn với 123HOST, chạy ứng dụng bằng PowerShell thay vì mở trực tiếp tệp HTML.", `<div class="modal-message">Mở Terminal trong thư mục dự án và chạy:<br><br><strong>powershell -ExecutionPolicy Bypass -File .\\server.ps1</strong><br><br>Sau đó truy cập <strong>http://127.0.0.1:8000</strong>.</div>`, "", "", false);
           return;
         }
-        const body = `<form id="modal-form" class="form-grid"><div class="modal-message">Đăng nhập an toàn qua máy chủ localhost. Mật khẩu và mã JWT không được lưu trong trình duyệt.</div><label class="field">Email tài khoản 123HOST<input name="username" type="email" required autocomplete="username" maxlength="254" placeholder="ban@email.com"></label><label class="field">Mật khẩu<input name="password" type="password" required autocomplete="current-password"></label><div class="modal-message" data-api-login-status role="status" aria-live="polite" hidden></div></form>`;
+        const body = `<form id="modal-form" class="form-grid"><div class="modal-message">Thông tin đăng nhập được gửi an toàn tới máy chủ để xác thực. Mật khẩu và mã JWT không được lưu trong trình duyệt.</div><label class="field">Email tài khoản 123HOST<input name="username" type="email" required autocomplete="username" maxlength="254" placeholder="ban@email.com"></label><label class="field">Mật khẩu<input name="password" type="password" required autocomplete="current-password"></label><div class="modal-message" data-api-login-status role="status" aria-live="polite" hidden></div></form>`;
         openModal("Kết Nối 123HOST", "Đăng nhập để đồng bộ dữ liệu tài khoản thật.", body, "Đăng Nhập", "connect-api");
       }
 
