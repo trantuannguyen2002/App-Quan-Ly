@@ -57,7 +57,6 @@
         dnsRecords: {}
       };
       const documentedDnsRecordTypes = ["A", "CNAME", "URL", "FRAME", "MX", "MXE", "TXT"];
-      const DOMAIN_EXPIRY_ALERT_DAYS = 365;
       let state = loadState();
       let currentScreen = "home";
       let projectFilter = "all";
@@ -117,6 +116,28 @@
         const vietnamese = text.match(/^(\d{1,2})\s+Th(\d{1,2}),?\s*(\d{4})$/i);
         if (vietnamese) return `${vietnamese[1].padStart(2, "0")}/${vietnamese[2].padStart(2, "0")}/${vietnamese[3]}`;
         return text;
+      }
+
+      function formatMoney(value, currency = "") {
+        const text = String(value ?? "0").trim();
+        const amount = Number(text.replace(/,/g, ""));
+        if (!text || !Number.isFinite(amount)) return `${text || "0"}${currency ? ` ${currency}` : ""}`;
+        const isVnd = String(currency).trim().toUpperCase() === "VND";
+        const formatted = new Intl.NumberFormat("vi-VN", {
+          minimumFractionDigits: isVnd ? 0 : 2,
+          maximumFractionDigits: isVnd ? 0 : 2
+        }).format(amount);
+        return `${formatted}${currency ? ` ${currency}` : ""}`;
+      }
+
+      function getTimeGreeting() {
+        const hour = new Date().getHours();
+        return hour < 12 ? "Chào buổi sáng" : hour < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+      }
+
+      function updateHomeGreeting() {
+        const greeting = document.querySelector("[data-home-greeting]");
+        if (greeting) greeting.textContent = `${getTimeGreeting()}, ${getAccountName()}!`;
       }
 
       function icon(name, size = 17) {
@@ -190,21 +211,39 @@
         let days = rawDays !== null && rawDays !== undefined && String(rawDays).trim() !== "" ? Number(rawDays) : null;
         const rawDate = String(domain.expires || domain.next_due || domain.expiry || "").trim();
         let date = formatDate(rawDate) || "Chưa có thông tin";
+        let expiryUtc = null;
         if (rawDate === "Chưa thiết lập") days = null;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-          const [, year, month, day] = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-          const expiryUtc = Date.UTC(Number(year), Number(month) - 1, Number(day));
-          const validDate = new Date(expiryUtc);
-          if (validDate.getUTCFullYear() === Number(year) && validDate.getUTCMonth() === Number(month) - 1 && validDate.getUTCDate() === Number(day)) {
-            const today = new Date();
-            const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-            days = Math.round((expiryUtc - todayUtc) / 86400000);
+        let dateParts = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+        if (dateParts) {
+          dateParts = [dateParts[0], dateParts[1], dateParts[2], dateParts[3]];
+        } else {
+          const numericDate = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          const vietnameseDate = rawDate.match(/^(\d{1,2})\s+Th(\d{1,2}),?\s*(\d{4})$/i);
+          const parsed = numericDate || vietnameseDate;
+          if (parsed) dateParts = [parsed[0], parsed[3], parsed[2], parsed[1]];
+        }
+        if (dateParts) {
+          const year = Number(dateParts[1]);
+          const month = Number(dateParts[2]);
+          const day = Number(dateParts[3]);
+          const parsedUtc = Date.UTC(year, month - 1, day);
+          const validDate = new Date(parsedUtc);
+          if (validDate.getUTCFullYear() === year && validDate.getUTCMonth() === month - 1 && validDate.getUTCDate() === day) {
+            expiryUtc = parsedUtc;
           }
         }
+        const today = new Date();
+        const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+        if (expiryUtc !== null) days = Math.round((expiryUtc - todayUtc) / 86400000);
+        else if (days !== null && Number.isFinite(days)) expiryUtc = todayUtc + Math.round(days) * 86400000;
         if (/expired|terminated|cancelled/.test(status) || (days !== null && Number.isFinite(days) && days < 0)) {
           return { category: "expired", days: Number.isFinite(days) ? days : 0, date };
         }
-        if (days !== null && Number.isFinite(days) && days <= DOMAIN_EXPIRY_ALERT_DAYS) {
+        const expiryDate = expiryUtc === null ? null : new Date(expiryUtc);
+        const monthDifference = expiryDate
+          ? (expiryDate.getUTCFullYear() - today.getFullYear()) * 12 + expiryDate.getUTCMonth() - today.getMonth()
+          : null;
+        if (days !== null && Number.isFinite(days) && monthDifference !== null && monthDifference >= 0 && monthDifference <= 1) {
           return { category: "expiring", days: Number.isFinite(days) ? days : null, date };
         }
         return { category: "active", days: Number.isFinite(days) ? days : null, date };
@@ -281,7 +320,7 @@
         today.setHours(0, 0, 0, 0);
         const late = state.projects.filter((project) => project.status === "running" && project.deadlineISO && new Date(`${project.deadlineISO}T00:00:00`) < today).length;
         const warningDomains = getDomainAlerts();
-        return `${heading(`Chào buổi sáng, ${esc(getAccountName())}!`, "Đây là tình hình dự án và dịch vụ của bạn hôm nay.")}
+        return `${heading(`<span data-home-greeting>${getTimeGreeting()}, ${esc(getAccountName())}!</span>`, "Đây là tình hình dự án và dịch vụ của bạn hôm nay.")}
           <section class="grid stats-grid">${statCard("code","Dự án đang chạy",String(running).padStart(2,"0"),"Đang thực hiện")}${statCard("check","Đã hoàn thành",String(completed).padStart(2,"0"),"Tổng dự án")}${statCard("clock","Dự án quá hạn",String(late).padStart(2,"0"),"Cần chú ý")}${statCard("globe",apiState.authenticated ? "Tên miền 123HOST" : "Tên miền mẫu",String((apiState.authenticated ? apiState.domains : state.domains).length).padStart(2,"0"),apiState.authenticated ? "Đã đồng bộ" : "Dữ liệu mẫu")}</section>
           <div class="grid home-grid">
             <section class="panel">${section("Dự án đang chạy","Theo dõi tiến độ công việc của nhóm.",`<button class="link-button" type="button" data-route="projects">Tất cả dự án →</button>`)}<div class="project-list">${state.projects.filter((project) => project.status === "running").slice(0,3).map((project) => projectCard(project)).join("") || `<div class="empty-state">Chưa có dự án đang chạy.<br>Tạo một dự án mới để bắt đầu.</div>`}<button class="button primary" type="button" data-action="new-project">＋ &nbsp; Tạo Dự Án Mới</button></div></section>
@@ -328,8 +367,8 @@
           const syncedAt = apiState.domainsLastSyncedAt
             ? `Dữ liệu 123HOST · Cập nhật ${new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(apiState.domainsLastSyncedAt)}`
             : "Đang lấy dữ liệu mới nhất từ 123HOST";
-          return `${heading("Tên Miền & DNS",`${syncedAt}. Ưu tiên tên miền sắp hết hạn.`,`<button class="button" type="button" data-action="refresh-domains" ${apiState.domainSyncing ? "disabled" : ""}>${apiState.domainSyncing ? "↻ &nbsp; Đang đồng bộ..." : "↻ &nbsp; Đồng Bộ Tên Miền"}</button>`)}
-            <section class="grid domain-summary-grid">${statCard("globe","Tổng tên miền",String(domainRows.length),"Trong tài khoản")}${statCard("calendar","Sắp hết hạn",String(alertCounts.expiring),`Trong ${DOMAIN_EXPIRY_ALERT_DAYS} ngày`)}${statCard("clock","Đã hết hạn",String(alertCounts.expired),"Cần xử lý")}</section>
+          return `${heading("Tên Miền & DNS",`${syncedAt}. Hiển thị cảnh báo hết hạn trong tháng này và tháng sau.`,`<button class="button" type="button" data-action="refresh-domains" ${apiState.domainSyncing ? "disabled" : ""}>${apiState.domainSyncing ? "↻ &nbsp; Đang đồng bộ..." : "↻ &nbsp; Đồng Bộ Tên Miền"}</button>`)}
+            <section class="grid domain-summary-grid">${statCard("globe","Tổng tên miền",String(domainRows.length),"Trong tài khoản")}${statCard("calendar","Sắp hết hạn",String(alertCounts.expiring),"Tháng này và tháng sau")}${statCard("clock","Đã hết hạn",String(alertCounts.expired),"Cần xử lý")}</section>
             <div class="panel">${section("Danh sách tên miền",`${visible.length} / ${filtered.length} kết quả · Ưu tiên sắp hết hạn`, `<span class="status-pill green">Đã kết nối</span>`)}
               ${apiState.domainError ? `<div class="modal-message domain-error" role="alert">${esc(apiState.domainError)}<br><button class="link-button" type="button" data-action="refresh-domains">Thử đồng bộ lại →</button></div>` : ""}
               <label class="search-field">${icon("search",15)}<input type="search" data-search-domains placeholder="Tìm tên miền..." aria-label="Tìm tên miền" value="${esc(domainQuery)}"></label>
@@ -352,8 +391,8 @@
           return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ đồng bộ từ tài khoản 123HOST.",`<button class="button" type="button" data-action="refresh-api">↻ &nbsp; Đồng bộ</button>`)}
             <div class="grid hosting-grid">
               <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${apiState.services.map(liveServiceCard).join("") || `<div class="empty-state">${apiState.servicesLoaded ? "Tài khoản chưa có dịch vụ hosting." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
-              <section class="panel">${section("Hóa đơn gần đây", "Chọn một hóa đơn để xem chi tiết.")}<div class="hosting-list">${apiState.invoices.map((invoice) => `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">Hóa đơn #${esc(invoice.number || invoice.id)}</div><div class="card-caption">${esc(formatDate(invoice.date || ""))}${invoice.duedate ? ` · Hạn thanh toán ${esc(formatDate(invoice.duedate))}` : ""}</div></div><span class="status-pill ${String(invoice.status).toLowerCase() === "paid" ? "green" : "orange"}">${esc(invoice.status || "Chưa rõ")}</span></div><div class="card-caption" style="margin-top:9px">Tổng tiền · ${esc(invoice.total || "0")} ${esc(invoice.currency || "")}</div><button class="button small" style="margin-top:10px" type="button" data-action="api-invoice" data-id="${esc(invoice.id)}">Xem hóa đơn →</button></article>`).join("") || `<div class="empty-state">${apiState.invoicesLoaded ? "Tài khoản chưa có hóa đơn." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
-              <section class="panel">${section("Thông tin tài khoản", "Số dư và tín dụng từ 123HOST.")}<div class="modal-message">${!apiState.balanceLoaded ? "Đang tải số dư..." : apiState.balance?.details ? `Đơn vị tiền tệ: <strong>${esc(apiState.balance.details.currency || "")}</strong><br>Số dư hóa đơn: <strong>${esc(apiState.balance.details.acc_balance || "0")}</strong><br>Tín dụng: <strong>${esc(apiState.balance.details.acc_credit || "0")}</strong>` : "123HOST không trả về thông tin số dư."}</div></section>
+              <section class="panel">${section("Hóa đơn gần đây", "Chọn một hóa đơn để xem chi tiết.")}<div class="hosting-list">${apiState.invoices.map((invoice) => `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">Hóa đơn #${esc(invoice.number || invoice.id)}</div><div class="card-caption">${esc(formatDate(invoice.date || ""))}${invoice.duedate ? ` · Hạn thanh toán ${esc(formatDate(invoice.duedate))}` : ""}</div></div><span class="status-pill ${String(invoice.status).toLowerCase() === "paid" ? "green" : "orange"}">${esc(invoice.status || "Chưa rõ")}</span></div><div class="card-caption" style="margin-top:9px">Tổng tiền · ${esc(formatMoney(invoice.total, invoice.currency))}</div><button class="button small" style="margin-top:10px" type="button" data-action="api-invoice" data-id="${esc(invoice.id)}">Xem hóa đơn →</button></article>`).join("") || `<div class="empty-state">${apiState.invoicesLoaded ? "Tài khoản chưa có hóa đơn." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
+              <section class="panel">${section("Thông tin tài khoản", "Số dư và tín dụng từ 123HOST.")}<div class="modal-message">${!apiState.balanceLoaded ? "Đang tải số dư..." : apiState.balance?.details ? `Đơn vị tiền tệ: <strong>${esc(apiState.balance.details.currency || "")}</strong><br>Số dư hóa đơn: <strong>${esc(formatMoney(apiState.balance.details.acc_balance, apiState.balance.details.currency))}</strong><br>Tín dụng: <strong>${esc(formatMoney(apiState.balance.details.acc_credit, apiState.balance.details.currency))}</strong>` : "123HOST không trả về thông tin số dư."}</div></section>
             </div>`;
         }
         const total = state.accounts.reduce((sum, account) => sum + Number(account.used), 0);
@@ -659,8 +698,8 @@
 
       function openApiInvoice(invoice) {
         const items = Array.isArray(invoice.items) ? invoice.items : [];
-        const itemRows = items.map((item) => `<article class="hosting-card"><div class="card-title">${esc(item.description || "Khoản phí")}</div><div class="card-caption">${esc(item.qty || "1")} × ${esc(item.amount || item.linetotal || "0")} ${esc(invoice.currency || "")}</div><div class="card-caption" style="margin-top:7px">Thành tiền · ${esc(item.linetotal || item.amount || "0")} ${esc(invoice.currency || "")}</div></article>`).join("");
-        const details = `<div class="hosting-list">${itemRows || `<div class="empty-state">Hóa đơn không có chi tiết khoản mục.</div>`}</div><div class="modal-message" style="margin-top:12px">Trạng thái: <strong>${esc(invoice.status || "Chưa rõ")}</strong><br>Ngày tạo: ${esc(formatDate(invoice.date) || "—")}<br>Hạn thanh toán: ${esc(formatDate(invoice.duedate || invoice.paybefore) || "—")}${invoice.datepaid ? `<br>Ngày thanh toán: ${esc(formatDate(invoice.datepaid))}` : ""}<br><br>Tạm tính: <strong>${esc(invoice.subtotal ?? invoice.total ?? "0")} ${esc(invoice.currency || "")}</strong><br>Thuế: <strong>${esc(invoice.tax ?? "0")} ${esc(invoice.currency || "")}</strong><br>Tổng cộng: <strong>${esc(invoice.total || "0")} ${esc(invoice.currency || "")}</strong>${invoice.notes ? `<br><br>Ghi chú: ${esc(invoice.notes)}` : ""}</div>`;
+        const itemRows = items.map((item) => `<article class="hosting-card"><div class="card-title">${esc(item.description || "Khoản phí")}</div><div class="card-caption">${esc(item.qty || "1")} × ${esc(formatMoney(item.amount ?? item.linetotal, invoice.currency))}</div><div class="card-caption" style="margin-top:7px">Thành tiền · ${esc(formatMoney(item.linetotal ?? item.amount, invoice.currency))}</div></article>`).join("");
+        const details = `<div class="hosting-list">${itemRows || `<div class="empty-state">Hóa đơn không có chi tiết khoản mục.</div>`}</div><div class="modal-message" style="margin-top:12px">Trạng thái: <strong>${esc(invoice.status || "Chưa rõ")}</strong><br>Ngày tạo: ${esc(formatDate(invoice.date) || "—")}<br>Hạn thanh toán: ${esc(formatDate(invoice.duedate || invoice.paybefore) || "—")}${invoice.datepaid ? `<br>Ngày thanh toán: ${esc(formatDate(invoice.datepaid))}` : ""}<br><br>Tạm tính: <strong>${esc(formatMoney(invoice.subtotal ?? invoice.total, invoice.currency))}</strong><br>Thuế: <strong>${esc(formatMoney(invoice.tax, invoice.currency))}</strong><br>Tổng cộng: <strong>${esc(formatMoney(invoice.total, invoice.currency))}</strong>${invoice.notes ? `<br><br>Ghi chú: ${esc(invoice.notes)}` : ""}</div>`;
         openModal(`Hóa Đơn #${esc(invoice.number || invoice.id)}`, "Chi tiết hóa đơn đồng bộ trực tiếp từ 123HOST.", details, "", "", false);
       }
 
@@ -713,7 +752,7 @@
         const emptyMessage = apiState.authenticated && !apiState.notificationsLoaded
           ? "Đang tải thông báo tài khoản..."
           : apiState.notificationsError || "Không có tên miền sắp hết hạn hoặc thông báo mới.";
-        const summary = `${upcoming.length} tên miền sắp hết hạn trong 365 ngày${expired.length ? ` · ${expired.length} đã hết hạn` : ""}`;
+        const summary = `${upcoming.length} tên miền sắp hết hạn trong tháng này và tháng sau${expired.length ? ` · ${expired.length} đã hết hạn` : ""}`;
         openModal("Thông Báo", `${summary}${apiState.authenticated ? ` · ${notices.length} thông báo mới từ 123HOST` : ""}. Cảnh báo tên miền dùng cùng danh sách và ngày hết hạn API với màn Tên Miền & DNS.`, `<div class="hosting-list">${sections || `<div class="empty-state">${esc(emptyMessage)}</div>`}</div>`, "", "", false);
       }
 
@@ -1356,5 +1395,17 @@
       const firstRoute = Object.keys(routeHashes).find((key) => routeHashes[key] === location.hash.slice(1));
       if (firstRoute) currentScreen = firstRoute;
       render();
+      const splash = document.querySelector("#app-splash");
+      if (splash) {
+        window.setTimeout(() => {
+          splash.classList.add("is-hidden");
+          window.setTimeout(() => splash.remove(), 260);
+        }, 850);
+      }
+      window.setInterval(updateHomeGreeting, 60_000);
+      window.addEventListener("focus", updateHomeGreeting);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) updateHomeGreeting();
+      });
       if (window.location.protocol !== "file:") initializeApiSession();
     })();

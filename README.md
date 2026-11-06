@@ -42,6 +42,8 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 - Danh sách tên miền, thẻ cảnh báo trang chủ, huy hiệu chuông và nhóm hạn trong hộp thông báo dùng chung bộ phân loại từ 123HOST `GET /domain` (`expires`, `daytoexpire`); tự đồng bộ danh sách đầy đủ khi mở màn Tên Miền & DNS hoặc chuông. `GET /notifications/new` chỉ cung cấp thông báo portal mới nên được hiển thị tách biệt, không dùng làm danh sách hạn tên miền đầy đủ.
 - Ngày tháng trên giao diện dùng định dạng `dd/mm/yyyy`; giao diện điện thoại có điều hướng dưới cùng, vùng chạm lớn và hộp thoại dạng trang trượt.
 - Lọc, tìm kiếm và xem tổng số tên miền; mở chi tiết từng hóa đơn trực tiếp từ danh sách.
+- Chỉ đánh dấu tên miền sắp hết hạn trong tháng hiện tại hoặc tháng kế tiếp; các hạn xa hơn vẫn hiển thị là đang hoạt động. Tiền hóa đơn được phân nhóm hàng nghìn theo định dạng Việt Nam, ví dụ `200.000 VND`.
+- Hiện màn hình chờ logo khi mở ứng dụng và lời chào buổi sáng, chiều hoặc tối theo giờ địa phương.
 - Quản lý máy chủ tên miền và thêm, sửa, xóa bản ghi DNS; mở danh sách bản ghi trước, tải loại bản ghi nền và cập nhật giao diện ngay sau thao tác thành công. Cập nhật/xóa bản ghi dùng đúng endpoint 123HOST `/domain/@id/dns/@index`. Dùng danh sách loại do API cung cấp hoặc danh sách tương thích trong tài liệu khi API loại DNS không trả dữ liệu.
 
 ## Kết nối 123HOST

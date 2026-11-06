@@ -33,6 +33,35 @@
       outline: 2px solid var(--cyan-light);
       outline-offset: 3px;
     }
+    .app-splash {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #080e1b;
+      transition: opacity .24s ease, visibility .24s ease;
+    }
+    .app-splash.is-hidden { visibility: hidden; opacity: 0; }
+    .splash-mark {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border: 1px solid rgba(69,221,245,.36);
+      border-radius: 18px;
+      color: var(--cyan-light);
+      background: linear-gradient(145deg, rgba(6,182,212,.24), rgba(6,182,212,.05));
+      box-shadow: 0 8px 30px rgba(6,182,212,.15);
+      animation: splash-pulse 1.1s ease-in-out infinite alternate;
+    }
+    .splash-mark svg { width: 28px; height: 28px; }
+    .splash-name { margin-top: 4px; font-size: 15px; font-weight: 780; letter-spacing: .2em; }
+    .splash-caption { color: #8392aa; font-size: 9px; letter-spacing: .14em; }
+    @keyframes splash-pulse { to { transform: scale(1.06); box-shadow: 0 10px 36px rgba(6,182,212,.28); } }
     .app-shell { display: grid; min-height: 100vh; grid-template: 72px 1fr / 238px 1fr; }
     .topbar {
       position: sticky;
@@ -379,5 +408,5 @@
       .mobile-nav .nav-link { font-size: 9px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
     }
