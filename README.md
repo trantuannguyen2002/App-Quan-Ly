@@ -46,10 +46,29 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 
 ## Kết nối 123HOST
 
+### Chạy trên máy tính
+
 1. Chạy ứng dụng qua `server.ps1` như hướng dẫn bên trên.
 2. Mở **Cài Đặt → Kết Nối 123HOST** và nhập email/mật khẩu của tài khoản bạn có quyền sử dụng.
-3. API đăng nhập và làm mới JWT gửi JSON trong thân POST theo ví dụ chính thức của 123HOST (Swagger cũng liệt kê các trường này dưới dạng query). Nếu endpoint JWT bị giới hạn HTTP 429, ứng dụng thử Basic Authentication dự phòng được tài liệu 123HOST hỗ trợ. Thông tin xác thực chỉ được giữ trong bộ nhớ máy chủ PowerShell khi cần dùng Basic, không ghi vào `localStorage` hoặc trả về cho giao diện; ngắt kết nối hoặc dừng máy chủ sẽ xóa phiên này.
-4. Đăng xuất trước khi đóng ứng dụng để yêu cầu 123HOST thu hồi phiên đăng nhập.
+3. API đăng nhập và làm mới JWT gửi JSON trong thân POST theo ví dụ chính thức của 123HOST (Swagger cũng liệt kê các trường này dưới dạng query). Nếu endpoint JWT bị giới hạn HTTP 429, ứng dụng thử Basic Authentication dự phòng được tài liệu 123HOST hỗ trợ. Thông tin xác thực được giữ trong bộ nhớ máy chủ PowerShell khi cần dùng Basic, không ghi vào `localStorage` hoặc trả về cho giao diện.
+4. Ngắt kết nối trong ứng dụng trước khi đóng để yêu cầu 123HOST thu hồi phiên đăng nhập.
+
+### Chạy trên Vercel
+
+Vercel triển khai API bằng hàm serverless trong `api/[...path].js`; chỉ tải các tệp giao diện tĩnh lên sẽ khiến `/api/login` trả về 404.
+
+1. Thêm biến môi trường `DEVHQ_SESSION_SECRET` trong **Vercel → Project → Settings → Environment Variables**. Dùng giá trị ngẫu nhiên dài ít nhất 32 ký tự; có thể tạo bằng PowerShell:
+
+   ```powershell
+   $bytes = New-Object byte[] 32
+   [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+   [Convert]::ToBase64String($bytes)
+   ```
+
+2. Đảm bảo Vercel dùng thư mục gốc của repository, bật biến này cho môi trường cần dùng (Production/Preview), lưu lại rồi triển khai lại project.
+3. Mở ứng dụng tại tên miền Vercel và đăng nhập từ **Cài Đặt → Kết Nối 123HOST**.
+
+Biến môi trường này dùng để mã hóa phiên đăng nhập trong cookie `HttpOnly`; không đặt nó trong mã frontend hoặc commit vào Git. Nếu thiếu cấu hình, API sẽ trả lỗi nêu rõ cần thêm biến môi trường. Các phiên cũ sẽ mất hiệu lực khi thay giá trị secret.
 
 Ứng dụng hỗ trợ xem dịch vụ, hóa đơn, số dư, thông báo; cấu hình máy chủ tên miền; thêm, sửa, xóa bản ghi DNS; và gửi yêu cầu gia hạn. Gia hạn có thể phát sinh thanh toán và chỉ được gửi sau khi người dùng chọn thời hạn/phương thức rồi xác nhận. Thay đổi DNS có thể ảnh hưởng website hoặc email. Chỉ thực hiện các thao tác trên tài khoản/tên miền bạn được ủy quyền.
 
