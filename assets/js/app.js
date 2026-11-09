@@ -467,6 +467,24 @@
         return null;
       }
 
+      async function loadApiNotifications() {
+        if (notificationsLoadPromise) return notificationsLoadPromise;
+        const request = (async () => {
+          const result = await apiRequest("/api/123host/notifications");
+          const notifications = extractApiList(result, "notifications");
+          if (!notifications) throw new Error("123HOST trả về danh sách thông báo sai định dạng.");
+          apiState.notifications = notifications;
+          apiState.notificationsLoaded = true;
+          apiState.notificationsError = "";
+        })();
+        notificationsLoadPromise = request;
+        try {
+          await request;
+        } finally {
+          if (notificationsLoadPromise === request) notificationsLoadPromise = null;
+        }
+      }
+
       async function loadApiDomains() {
         if (domainLoadPromise) return domainLoadPromise;
         apiState.domainSyncing = true;
@@ -498,9 +516,10 @@
         apiState.loading = true;
         render();
         const failures = [];
-        const [domainResult, detailsResult] = await Promise.allSettled([
+        const [domainResult, detailsResult, notificationResult] = await Promise.allSettled([
           loadApiDomains(),
-          apiRequest("/api/123host/details")
+          apiRequest("/api/123host/details"),
+          loadApiNotifications()
         ]);
         if (domainResult.status === "rejected") {
           failures.push(`domains: ${domainResult.reason.message}`);
@@ -511,12 +530,17 @@
         } else {
           failures.push(`details: ${detailsResult.reason.message}`);
         }
+        if (notificationResult.status === "rejected") {
+          apiState.notificationsError = `Không tải được thông báo 123HOST: ${notificationResult.reason.message}`;
+          apiState.notificationsLoaded = true;
+          failures.push(`notifications: ${notificationResult.reason.message}`);
+        }
         apiState.loading = false;
         render();
         if (failures.length) {
           console.error("Một số API 123HOST không tải được:", failures);
           const domainFailure = failures.find((failure) => failure.startsWith("domains: "));
-          notify(domainFailure ? `Tên miền chưa đồng bộ được: ${domainFailure.slice("domains: ".length)}` : `Đã đồng bộ ${apiState.domains.length} tên miền; thông tin hồ sơ chưa tải được.`);
+          notify(domainFailure ? `Tên miền chưa đồng bộ được: ${domainFailure.slice("domains: ".length)}` : `Chưa đồng bộ đầy đủ dữ liệu 123HOST: ${failures.join("; ")}`);
         } else {
           notify(`Đã đồng bộ ${apiState.domains.length} tên miền và hồ sơ 123HOST.`);
         }
@@ -759,33 +783,18 @@
       async function showNotifications() {
         openNotifications();
         if (!apiState.authenticated) return;
-        let notificationRequest = notificationsLoadPromise;
-        if (!notificationRequest) {
-          notificationRequest = (async () => {
-            const result = await apiRequest("/api/123host/notifications");
-            const notifications = extractApiList(result, "notifications");
-            if (!notifications) throw new Error("123HOST trả về danh sách thông báo sai định dạng.");
-            apiState.notifications = notifications;
-            apiState.notificationsLoaded = true;
-            apiState.notificationsError = "";
-          })();
-          notificationsLoadPromise = notificationRequest;
+        const notificationRequest = loadApiNotifications();
+        const [domainResult, notificationResult] = await Promise.allSettled([loadApiDomains(), notificationRequest]);
+        const failures = [];
+        if (domainResult.status === "rejected") failures.push(`Tên miền: ${domainResult.reason.message}`);
+        if (notificationResult.status === "rejected") {
+          apiState.notificationsError = `Không tải được thông báo 123HOST: ${notificationResult.reason.message}`;
+          apiState.notificationsLoaded = true;
+          failures.push(`Thông báo: ${notificationResult.reason.message}`);
         }
-        try {
-          const [domainResult, notificationResult] = await Promise.allSettled([loadApiDomains(), notificationRequest]);
-          const failures = [];
-          if (domainResult.status === "rejected") failures.push(`Tên miền: ${domainResult.reason.message}`);
-          if (notificationResult.status === "rejected") {
-            apiState.notificationsError = `Không tải được thông báo 123HOST: ${notificationResult.reason.message}`;
-            apiState.notificationsLoaded = true;
-            failures.push(`Thông báo: ${notificationResult.reason.message}`);
-          }
-          if (failures.length) notify(`Chưa đồng bộ đầy đủ dữ liệu 123HOST: ${failures.join("; ")}`);
-          render();
-          openNotifications();
-        } finally {
-          if (notificationsLoadPromise === notificationRequest) notificationsLoadPromise = null;
-        }
+        if (failures.length) notify(`Chưa đồng bộ đầy đủ dữ liệu 123HOST: ${failures.join("; ")}`);
+        render();
+        openNotifications();
       }
 
       async function openApiRenewal(domain) {

@@ -41,8 +41,8 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 - Điều chỉnh tùy chọn thông báo và nhắc gia hạn.
 - Cài ứng dụng lên màn hình chính; số cảnh báo tên miền và thông báo 123HOST được đồng bộ lên biểu tượng trên trình duyệt/thiết bị có hỗ trợ App Badging API. Số chỉ cập nhật khi ứng dụng mở hoặc đồng bộ; nhận cập nhật nền khi ứng dụng đóng cần tích hợp dịch vụ push.
 - Lưu dữ liệu trên trình duyệt bằng `localStorage`, không mất khi tải lại trang.
-- Kết nối API 123HOST qua máy chủ localhost; đồng bộ nhanh tên miền và hồ sơ trước, chỉ tải dịch vụ/hóa đơn khi mở Hosting và thông báo khi mở chuông.
-- Danh sách tên miền, thẻ cảnh báo trang chủ, huy hiệu chuông và nhóm hạn trong hộp thông báo dùng chung bộ phân loại từ 123HOST `GET /domain` (`expires`, `daytoexpire`); tự đồng bộ danh sách đầy đủ khi mở màn Tên Miền & DNS hoặc chuông. `GET /notifications/new` chỉ cung cấp thông báo portal mới nên được hiển thị tách biệt, không dùng làm danh sách hạn tên miền đầy đủ.
+- Kết nối API 123HOST qua máy chủ localhost; đồng bộ tên miền, hồ sơ và thông báo khi khôi phục phiên; chỉ tải dịch vụ/hóa đơn khi mở Hosting.
+- Danh sách tên miền, thẻ cảnh báo trang chủ, huy hiệu chuông và nhóm hạn trong hộp thông báo dùng chung bộ phân loại từ 123HOST `GET /domain` (`expires`, `daytoexpire`); tự đồng bộ danh sách đầy đủ khi mở màn Tên Miền & DNS hoặc chuông. Thông báo portal mới được tải khi khôi phục phiên và làm mới khi mở chuông; `GET /notifications/new` chỉ cung cấp danh sách portal, không thay thế danh sách hạn tên miền.
 - Ngày tháng trên giao diện dùng định dạng `dd/mm/yyyy`; giao diện điện thoại có điều hướng dưới cùng, vùng chạm lớn và hộp thoại dạng trang trượt.
 - Lọc, tìm kiếm và xem tổng số tên miền; mở chi tiết từng hóa đơn trực tiếp từ danh sách.
 - Chỉ đánh dấu tên miền sắp hết hạn trong tháng hiện tại hoặc tháng kế tiếp; các hạn xa hơn vẫn hiển thị là đang hoạt động. Tiền hóa đơn được phân nhóm hàng nghìn theo định dạng Việt Nam, ví dụ `200.000 VND`.
