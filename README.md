@@ -14,7 +14,9 @@
 │   ├── css/
 │   │   └── app.css         # Giao diện tối và bố cục responsive
 │   ├── icons/
-│   │   └── devhq.svg       # Biểu tượng ứng dụng
+│   │   ├── uva-logo.png          # Logo UVA Website Development
+│   │   ├── uva-app-icon-512.png  # Biểu tượng ứng dụng
+│   │   └── apple-touch-icon.png  # Biểu tượng màn hình chính iOS
 │   └── js/
 │       └── app.js          # Màn hình, thao tác và dữ liệu mẫu
 └── README.md

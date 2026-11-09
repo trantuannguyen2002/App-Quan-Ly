@@ -46,22 +46,13 @@
       transition: opacity .24s ease, visibility .24s ease;
     }
     .app-splash.is-hidden { visibility: hidden; opacity: 0; }
-    .splash-mark {
-      display: grid;
-      width: 58px;
-      height: 58px;
-      place-items: center;
-      border: 1px solid rgba(69,221,245,.36);
-      border-radius: 18px;
-      color: var(--cyan-light);
-      background: linear-gradient(145deg, rgba(6,182,212,.24), rgba(6,182,212,.05));
-      box-shadow: 0 8px 30px rgba(6,182,212,.15);
+    .splash-logo {
+      display: block;
+      width: min(360px, 80vw);
+      height: auto;
       animation: splash-pulse 1.1s ease-in-out infinite alternate;
     }
-    .splash-mark svg { width: 28px; height: 28px; }
-    .splash-name { margin-top: 4px; font-size: 15px; font-weight: 780; letter-spacing: .2em; }
-    .splash-caption { color: #8392aa; font-size: 9px; letter-spacing: .14em; }
-    @keyframes splash-pulse { to { transform: scale(1.06); box-shadow: 0 10px 36px rgba(6,182,212,.28); } }
+    @keyframes splash-pulse { to { transform: scale(1.035); } }
     .app-shell { display: grid; min-height: 100vh; grid-template: 72px 1fr / 238px 1fr; }
     .topbar {
       position: sticky;
@@ -77,18 +68,7 @@
       backdrop-filter: blur(18px);
     }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-mark {
-      display: grid;
-      width: 39px;
-      height: 39px;
-      place-items: center;
-      border: 1px solid rgba(69,221,245,.36);
-      border-radius: 13px;
-      color: var(--cyan-light);
-      background: linear-gradient(145deg, rgba(6,182,212,.24), rgba(6,182,212,.05));
-      box-shadow: inset 0 1px rgba(255,255,255,.1), 0 8px 26px rgba(6,182,212,.1);
-    }
-    .brand-mark svg { width: 21px; height: 21px; }
+    .brand-logo { display: block; width: 120px; height: auto; }
     .brand-name { font-size: 13px; font-weight: 780; letter-spacing: .18em; }
     .brand-caption { margin-top: 3px; color: #8392aa; font-size: 9px; letter-spacing: .08em; }
     .top-actions { display: flex; align-items: center; gap: 13px; }
@@ -330,9 +310,7 @@
       body { min-height: 100dvh; background: #0b1222; }
       .app-shell { display: block; min-width: 0; min-height: 100dvh; }
       .topbar { position: sticky; height: 61px; padding: 0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left)); }
-      .brand-mark { width: 35px; height: 35px; border-radius: 11px; }
-      .brand-name { font-size: 14px; }
-      .brand-caption { font-size: 10px; }
+      .brand-logo { width: 96px; }
       .sidebar { display: none; }
       .user-copy { display: none; }
       .user-chip { padding-left: 0; }
