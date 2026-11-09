@@ -48,7 +48,7 @@
     .app-splash.is-hidden { visibility: hidden; opacity: 0; }
     .splash-logo {
       display: block;
-      width: min(200px, 60vw);
+      width: min(120px, 40vw);
       height: auto;
       animation: splash-pulse 1.1s ease-in-out infinite alternate;
     }
