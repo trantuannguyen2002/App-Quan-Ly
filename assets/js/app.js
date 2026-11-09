@@ -810,6 +810,20 @@
         toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2800);
       }
 
+      function updateAppBadge(count) {
+        if (typeof navigator.setAppBadge !== "function") return;
+        try {
+          const result = count > 0
+            ? navigator.setAppBadge(count)
+            : typeof navigator.clearAppBadge === "function" ? navigator.clearAppBadge() : null;
+          if (result && typeof result.catch === "function") {
+            result.catch((error) => console.error("Không thể cập nhật số thông báo trên biểu tượng DevHQ:", error));
+          }
+        } catch (error) {
+          console.error("Không thể cập nhật số thông báo trên biểu tượng DevHQ:", error);
+        }
+      }
+
       function updateTopbar() {
         const client = apiState.client;
         const name = getAccountName();
@@ -829,7 +843,9 @@
 
         const domainAlertCount = getDomainAlerts().length;
         const portalNotificationCount = apiState.authenticated ? getReadableApiNotifications().length : 0;
-        if (notificationDot) notificationDot.hidden = domainAlertCount + portalNotificationCount === 0;
+        const notificationCount = domainAlertCount + portalNotificationCount;
+        if (notificationDot) notificationDot.hidden = notificationCount === 0;
+        updateAppBadge(notificationCount);
         if (notificationButton) {
           notificationButton.setAttribute(
             "aria-label",
@@ -1395,6 +1411,11 @@
       const firstRoute = Object.keys(routeHashes).find((key) => routeHashes[key] === location.hash.slice(1));
       if (firstRoute) currentScreen = firstRoute;
       render();
+      if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
+        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+          console.error("Không thể đăng ký service worker DevHQ:", error);
+        });
+      }
       const splash = document.querySelector("#app-splash");
       if (splash) {
         window.setTimeout(() => {

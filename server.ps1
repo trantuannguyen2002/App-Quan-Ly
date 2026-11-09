@@ -202,6 +202,7 @@ function Send-StaticFile {
     ".js" = "text/javascript; charset=utf-8"
     ".svg" = "image/svg+xml"
     ".json" = "application/json; charset=utf-8"
+    ".webmanifest" = "application/manifest+json; charset=utf-8"
   }
   $extension = [System.IO.Path]::GetExtension($fullPath).ToLowerInvariant()
   if ($extensions.ContainsKey($extension)) {

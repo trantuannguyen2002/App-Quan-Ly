@@ -1,0 +1,24 @@
+{
+  "name": "UVA Agency — Quản lý dự án & máy chủ",
+  "short_name": "UVA Agency",
+  "description": "Quản lý dự án, tên miền, hosting và máy chủ.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080e1b",
+  "theme_color": "#0b1222",
+  "icons": [
+    {
+      "src": "assets/icons/devhq.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -7,6 +7,8 @@
 ```text
 .
 ├── index.html              # Khung ứng dụng và các khu vực điều hướng
+├── manifest.webmanifest    # Thông tin ứng dụng cài lên màn hình chính
+├── service-worker.js       # Service worker cho ứng dụng web cài đặt
 ├── server.ps1              # Máy chủ localhost và proxy API 123HOST an toàn
 ├── assets/
 │   ├── css/
@@ -37,6 +39,7 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 - Tìm kiếm, thêm tên miền, chỉnh DNS, gia hạn tên miền và lưu yêu cầu chuyển tên miền.
 - Thêm VPS, xem thống kê máy chủ và dung lượng tài khoản hosting.
 - Điều chỉnh tùy chọn thông báo và nhắc gia hạn.
+- Cài ứng dụng lên màn hình chính; số cảnh báo tên miền và thông báo 123HOST được đồng bộ lên biểu tượng trên trình duyệt/thiết bị có hỗ trợ App Badging API. Số chỉ cập nhật khi ứng dụng mở hoặc đồng bộ; nhận cập nhật nền khi ứng dụng đóng cần tích hợp dịch vụ push.
 - Lưu dữ liệu trên trình duyệt bằng `localStorage`, không mất khi tải lại trang.
 - Kết nối API 123HOST qua máy chủ localhost; đồng bộ nhanh tên miền và hồ sơ trước, chỉ tải dịch vụ/hóa đơn khi mở Hosting và thông báo khi mở chuông.
 - Danh sách tên miền, thẻ cảnh báo trang chủ, huy hiệu chuông và nhóm hạn trong hộp thông báo dùng chung bộ phân loại từ 123HOST `GET /domain` (`expires`, `daytoexpire`); tự đồng bộ danh sách đầy đủ khi mở màn Tên Miền & DNS hoặc chuông. `GET /notifications/new` chỉ cung cấp thông báo portal mới nên được hiển thị tách biệt, không dùng làm danh sách hạn tên miền đầy đủ.
