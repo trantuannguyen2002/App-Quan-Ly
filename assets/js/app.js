@@ -8,10 +8,10 @@
         ],
         domains: [
           { id: "myportfolio", name: "myportfolio.com", status: "warning", days: 19, expiry: "14 Th11, 2026", dns: "ns1.devhq.vn", owner: "Sarah Anderson" },
-          { id: "admin", name: "admin.vn", status: "warning", days: 12, expiry: "07 Th11, 2026", dns: "ns2.devhq.vn", owner: "Đội ngũ DevHQ" },
+          { id: "admin", name: "admin.vn", status: "warning", days: 12, expiry: "07 Th11, 2026", dns: "ns2.devhq.vn", owner: "Đội ngũ UVA Agency" },
           { id: "daklak", name: "daklak.info.vn", status: "active", days: 210, expiry: "02 Th06, 2027", dns: "ns1.devhq.vn", owner: "Khách hàng" },
           { id: "taxitour", name: "taxitour.com.vn", status: "active", days: 328, expiry: "28 Th09, 2027", dns: "ns2.devhq.vn", owner: "Khách hàng" },
-          { id: "uva", name: "uva.vn", status: "active", days: 275, expiry: "02 Th08, 2027", dns: "ns1.devhq.vn", owner: "Đội ngũ DevHQ" }
+          { id: "uva", name: "uva.vn", status: "active", days: 275, expiry: "02 Th08, 2027", dns: "ns1.devhq.vn", owner: "Đội ngũ UVA Agency" }
         ],
         sites: [
           { name: "artisanbakery.com", account: "Green Account", used: 14, limit: 20, server: "VN-HCM-01" },
@@ -85,7 +85,7 @@
             transfers: Array.isArray(parsed.transfers) ? parsed.transfers : []
           };
         } catch (error) {
-          console.error("Không thể đọc dữ liệu DevHQ đã lưu:", error);
+          console.error("Không thể đọc dữ liệu UVA Agency đã lưu:", error);
           window.setTimeout(() => notify("Dữ liệu đã lưu không đọc được. Ứng dụng đang dùng dữ liệu mẫu."), 0);
           return structuredClone(initialState);
         }
@@ -96,7 +96,7 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           return true;
         } catch (error) {
-          console.error("Không thể lưu dữ liệu DevHQ:", error);
+          console.error("Không thể lưu dữ liệu UVA Agency:", error);
           notify("Không thể lưu dữ liệu trên trình duyệt này. Hãy kiểm tra dung lượng lưu trữ.");
           return false;
         }
@@ -147,7 +147,7 @@
       function heading(title, subtitle, action = "") {
         const today = new Date();
         const date = formatDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`);
-        return `<div class="page-heading"><div><p class="eyebrow">KHÔNG GIAN LÀM VIỆC · DEVHQ</p><h1>${title}</h1><p class="page-subtitle">${subtitle}</p></div>${action || `<div class="date-chip">${icon("calendar", 14)}${date}</div>`}</div>`;
+        return `<div class="page-heading"><div><p class="eyebrow">KHÔNG GIAN LÀM VIỆC · UVA AGENCY</p><h1>${title}</h1><p class="page-subtitle">${subtitle}</p></div>${action || `<div class="date-chip">${icon("calendar", 14)}${date}</div>`}</div>`;
       }
 
       function section(title, description = "", trailing = "") {
@@ -411,7 +411,7 @@
           ["plug","Cấu hình API DirectAdmin","Kết nối và thông tin xác thực máy chủ","api"],
           ["link","Liên Kết VPS","Quản lý kết nối đến máy chủ của bạn","vps"],
           ["bell","Tùy Chọn Thông Báo",state.notifications ? "Đang bật thông báo dự án và tên miền" : "Thông báo đang tắt","notifications"],
-          ["life","Liên Hệ Hỗ Trợ","Gửi câu hỏi cho đội ngũ DevHQ","support"]
+          ["life","Liên Hệ Hỗ Trợ","Gửi câu hỏi cho đội ngũ UVA Agency","support"]
         ];
         return `${heading("Cài Đặt Hệ Thống","Quản lý tài khoản và tùy chỉnh không gian làm việc.")}
           <section class="panel">${section("Kết nối tài khoản 123HOST","Đăng nhập để đồng bộ tên miền, dịch vụ, hóa đơn và thông tin tài khoản.",`<span class="status-pill ${apiState.loading ? "orange" : apiState.authenticated ? "green" : "orange"}">${apiState.loading ? "Đang đồng bộ" : apiState.authenticated ? "Đã kết nối" : "Chưa kết nối"}</span>`)}
@@ -433,7 +433,7 @@
           if (active) link.setAttribute("aria-current", "page");
           else link.removeAttribute("aria-current");
         });
-        document.title = `${screenNames[currentScreen]} — DevHQ`;
+        document.title = `${screenNames[currentScreen]} — UVA Agency`;
       }
 
       async function apiRequest(path, options = {}) {
@@ -826,10 +826,10 @@
             ? navigator.setAppBadge(count)
             : typeof navigator.clearAppBadge === "function" ? navigator.clearAppBadge() : null;
           if (result && typeof result.catch === "function") {
-            result.catch((error) => console.error("Không thể cập nhật số thông báo trên biểu tượng DevHQ:", error));
+            result.catch((error) => console.error("Không thể cập nhật số thông báo trên biểu tượng UVA Agency:", error));
           }
         } catch (error) {
-          console.error("Không thể cập nhật số thông báo trên biểu tượng DevHQ:", error);
+          console.error("Không thể cập nhật số thông báo trên biểu tượng UVA Agency:", error);
         }
       }
 
@@ -1058,7 +1058,7 @@
           if (server) openModal(server.name,"Thông tin máy chủ VPS.",`<div class="modal-message">Địa chỉ máy chủ: <strong>${esc(server.ip)}</strong><br>CPU đang dùng: <strong>${server.cpu}%</strong><br>RAM: <strong>${server.ram}GB / ${server.limit}GB</strong><br><br>Số liệu máy chủ mẫu, chưa đồng bộ với VPS thực tế.</div>`,"","",false);
         } else if (action === "profile") {
           const name = getAccountName();
-          const email = apiState.client?.email || (apiState.authenticated ? "Đang đồng bộ thông tin tài khoản..." : "Quản trị viên · Không gian làm việc DevHQ");
+          const email = apiState.client?.email || (apiState.authenticated ? "Đang đồng bộ thông tin tài khoản..." : "Quản trị viên · Không gian làm việc UVA Agency");
           openModal("Tài Khoản Của Bạn","Thông tin tài khoản đang đăng nhập.",`<div class="modal-message"><strong>${esc(name)}</strong><br>${esc(email)}<br><br>${apiState.authenticated ? "Thông tin đồng bộ trực tiếp từ 123HOST." : "Dữ liệu hồ sơ mẫu."}</div>`,"","",false);
         }
       }
@@ -1246,7 +1246,7 @@
           api: ["Cấu Hình API DirectAdmin","Quản lý kết nối máy chủ hosting.","Chưa kết nối DirectAdmin.<br>Để kết nối máy chủ thật, cần cấu hình API an toàn trên máy chủ backend; không nhập khóa bí mật vào ứng dụng trình duyệt."],
           vps: ["Liên Kết VPS","Danh sách máy chủ đã lưu trong ứng dụng.",`Hiện có ${state.vps.length} máy chủ VPS.<br>Địa chỉ IP và thông số đang là dữ liệu mẫu do bạn nhập.`],
           notifications: ["Tùy Chọn Thông Báo","Cài đặt nhận nhắc nhở dịch vụ.",`Trạng thái thông báo: <strong>${state.notifications ? "Đang bật" : "Đang tắt"}</strong>.<br>Nhắc gia hạn tên miền: <strong>${state.autoRenew ? "Đang bật" : "Đang tắt"}</strong>.`],
-          support: ["Liên Hệ Hỗ Trợ","Gửi câu hỏi đến đội ngũ DevHQ.",`<form id="modal-form" class="form-grid"><label class="field">Email của bạn<input name="email" type="email" required placeholder="ban@email.com"></label><label class="field">Nội dung cần hỗ trợ<textarea name="message" required maxlength="1000" placeholder="Mô tả vấn đề bạn gặp phải"></textarea></label></form>`]
+          support: ["Liên Hệ Hỗ Trợ","Gửi câu hỏi đến đội ngũ UVA Agency.",`<form id="modal-form" class="form-grid"><label class="field">Email của bạn<input name="email" type="email" required placeholder="ban@email.com"></label><label class="field">Nội dung cần hỗ trợ<textarea name="message" required maxlength="1000" placeholder="Mô tả vấn đề bạn gặp phải"></textarea></label></form>`]
         };
         const item = settings[key];
         if (!item) return;
@@ -1422,7 +1422,7 @@
       render();
       if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
         navigator.serviceWorker.register("./service-worker.js").catch((error) => {
-          console.error("Không thể đăng ký service worker DevHQ:", error);
+          console.error("Không thể đăng ký service worker UVA Agency:", error);
         });
       }
       const splash = document.querySelector("#app-splash");
