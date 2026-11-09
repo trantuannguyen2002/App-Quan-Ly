@@ -58,6 +58,15 @@
       };
       const documentedDnsRecordTypes = ["A", "CNAME", "URL", "FRAME", "MX", "MXE", "TXT"];
       let state = loadState();
+      const projectSync = {
+        revision: 0,
+        hydrated: false,
+        lastLocalSnapshot: "",
+        pollTimer: null,
+        writeTimer: null,
+        saving: false,
+        pendingWrite: false
+      };
       let currentScreen = "home";
       let projectFilter = "all";
       let domainQuery = "";
@@ -94,6 +103,11 @@
       function saveState() {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          const projectsSnapshot = JSON.stringify(state.projects);
+          if (projectSync.hydrated && projectsSnapshot !== projectSync.lastLocalSnapshot) {
+            projectSync.lastLocalSnapshot = projectsSnapshot;
+            scheduleSharedProjectSave();
+          }
           return true;
         } catch (error) {
           console.error("Không thể lưu dữ liệu UVA Agency:", error);
@@ -332,8 +346,11 @@
       function renderProjects() {
         const shown = state.projects.filter((project) => projectFilter === "all" || project.status === projectFilter);
         const tabs = `<div class="tabs" role="group" aria-label="Lọc dự án"><button class="tab-button ${projectFilter === "all" ? "active" : ""}" type="button" data-action="project-filter" data-filter="all">Tất cả (${state.projects.length})</button><button class="tab-button ${projectFilter === "running" ? "active" : ""}" type="button" data-action="project-filter" data-filter="running">Đang chạy</button><button class="tab-button ${projectFilter === "completed" ? "active" : ""}" type="button" data-action="project-filter" data-filter="completed">Hoàn thành</button></div>`;
+        const workspaceButton = apiState.authenticated
+          ? `<button class="button small" type="button" data-action="project-sync-now">Đồng bộ ngay</button>`
+          : `<button class="button small" type="button" data-action="connect-api">Đăng nhập 123HOST để đồng bộ</button>`;
         return `${heading("Quản Lý Dự Án","Theo dõi tiến độ, thành viên và danh sách công việc.",`<button class="button primary" type="button" data-action="new-project">＋ &nbsp; Tạo Dự Án Mới</button>`)}
-          <div class="toolbar">${tabs}<span class="card-caption">${state.projects.length} dự án trong không gian làm việc</span></div>
+          <div class="toolbar">${tabs}<div>${workspaceButton}<div class="card-caption">${apiState.authenticated ? "Danh sách dự án chung, không đổi theo tài khoản 123HOST." : "Đăng nhập 123HOST để xem và sửa danh sách chung."}</div></div></div>
           <div class="project-list">${shown.map((project) => projectCard(project, true)).join("") || `<div class="empty-state">Không có dự án trong danh mục này.</div>`}</div>`;
       }
 
@@ -599,7 +616,13 @@
           render();
           if (apiState.authenticated) {
             await loadApiData();
+            await loadSharedProjects().catch((error) => {
+              console.error("Không thể tải dự án dùng chung:", error);
+              notify(`Chưa thể đồng bộ dự án: ${error.message}`);
+            });
             if (currentScreen === "hosting") await loadApiHosting();
+          } else {
+            stopProjectSync();
           }
         } catch (error) {
           console.error("Không thể kiểm tra phiên 123HOST:", error);
@@ -630,6 +653,10 @@
           render();
           notify("Đăng nhập 123HOST thành công. Đang đồng bộ dữ liệu...");
           await loadApiData();
+          await loadSharedProjects().catch((error) => {
+            console.error("Không thể tải dự án dùng chung:", error);
+            notify(`Đăng nhập thành công nhưng chưa đồng bộ được dự án: ${error.message}`);
+          });
           if (currentScreen === "hosting") await loadApiHosting();
         } catch (error) {
           console.error("Đăng nhập 123HOST thất bại:", error);
@@ -819,6 +846,160 @@
         toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2800);
       }
 
+      async function sharedProjectRequest(method, body) {
+        const response = await fetch("/api/projects", {
+          method,
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : undefined,
+          cache: "no-store"
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(payload.error || `Không thể đồng bộ dự án (${response.status}).`);
+          error.status = response.status;
+          error.payload = payload;
+          throw error;
+        }
+        return payload;
+      }
+
+      async function loadSharedProjects() {
+        if (!apiState.authenticated) return;
+        const workspace = await sharedProjectRequest("GET");
+        if (!Array.isArray(workspace.projects)) {
+          stopProjectSync();
+          openModal(
+            "Khởi Tạo Danh Sách Dự Án Chung",
+            "Database chưa có danh sách dự án. Hãy thực hiện bước này trên thiết bị đang có dữ liệu dự án chính xác.",
+            `<form id="modal-form" class="form-grid"><div class="modal-message">Danh sách hiện trên thiết bị này sẽ được dùng làm dữ liệu chung cho mọi giao diện và mọi tài khoản 123HOST. Sau khi khởi tạo, các thiết bị khác sẽ tải danh sách này.</div></form>`,
+            "Khởi tạo danh sách chung",
+            "initialize-project-workspace",
+            false
+          );
+          return;
+        }
+        applySharedProjects(workspace);
+        startProjectSyncPolling();
+        if (currentScreen === "home" || currentScreen === "projects") render();
+      }
+
+      function startProjectSyncPolling() {
+        window.clearInterval(projectSync.pollTimer);
+        projectSync.pollTimer = window.setInterval(() => {
+          refreshSharedProjects().catch((error) => {
+            console.error("Không thể làm mới dự án dùng chung:", error);
+            if (error.status === 401) stopProjectSync();
+            notify(`Không thể làm mới dự án dùng chung: ${error.message}`);
+          });
+        }, 15000);
+      }
+
+      function stopProjectSync() {
+        window.clearInterval(projectSync.pollTimer);
+        window.clearTimeout(projectSync.writeTimer);
+        projectSync.pollTimer = null;
+        projectSync.writeTimer = null;
+        projectSync.revision = 0;
+        projectSync.hydrated = false;
+        projectSync.lastLocalSnapshot = "";
+        projectSync.pendingWrite = false;
+      }
+
+      function applySharedProjects(workspace) {
+        projectSync.revision = workspace.revision;
+        projectSync.hydrated = true;
+        state.projects = workspace.projects;
+        projectSync.lastLocalSnapshot = JSON.stringify(state.projects);
+        saveState();
+      }
+
+      async function initializeSharedProjects() {
+        const submitButton = modalRoot.querySelector('button[form="modal-form"][data-action="initialize-project-workspace"]');
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Đang khởi tạo...";
+        }
+        try {
+          const workspace = await sharedProjectRequest("POST", { projects: state.projects });
+          applySharedProjects(workspace);
+          startProjectSyncPolling();
+          closeModal();
+          render();
+          notify("Đã khởi tạo danh sách dự án chung.");
+        } catch (error) {
+          console.error("Không thể khởi tạo danh sách dự án chung:", error);
+          notify(error.message);
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "Khởi tạo danh sách chung";
+          }
+        }
+      }
+
+      async function refreshSharedProjects() {
+        if (!apiState.authenticated || !projectSync.hydrated || projectSync.saving || projectSync.writeTimer || modalRoot.firstElementChild) return;
+        const localSnapshot = projectSync.lastLocalSnapshot;
+        const currentRevision = projectSync.revision;
+        const workspace = await sharedProjectRequest("GET");
+        if (projectSync.saving || projectSync.writeTimer || modalRoot.firstElementChild
+          || projectSync.lastLocalSnapshot !== localSnapshot || projectSync.revision !== currentRevision) return;
+        if (workspace.revision <= projectSync.revision || !Array.isArray(workspace.projects)) return;
+        applySharedProjects(workspace);
+        if (currentScreen === "home" || currentScreen === "projects") render();
+        notify("Đã nhận cập nhật dự án từ thiết bị khác.");
+      }
+
+      function scheduleSharedProjectSave(delay = 350) {
+        if (!apiState.authenticated || !projectSync.hydrated) return;
+        window.clearTimeout(projectSync.writeTimer);
+        projectSync.writeTimer = window.setTimeout(() => {
+          projectSync.writeTimer = null;
+          persistSharedProjects();
+        }, delay);
+      }
+
+      async function persistSharedProjects() {
+        if (!apiState.authenticated || !projectSync.hydrated) return;
+        if (projectSync.saving) {
+          projectSync.pendingWrite = true;
+          return;
+        }
+        projectSync.saving = true;
+        const projects = structuredClone(state.projects);
+        try {
+          const workspace = await sharedProjectRequest("PUT", {
+            projects,
+            revision: projectSync.revision
+          });
+          projectSync.revision = workspace.revision;
+          if (JSON.stringify(state.projects) !== JSON.stringify(projects)) scheduleSharedProjectSave();
+        } catch (error) {
+          console.error("Không thể lưu dự án dùng chung:", error);
+          if (error.status === 409 && Array.isArray(error.payload?.projects)) {
+            state.projects = error.payload.projects;
+            projectSync.revision = error.payload.revision;
+            projectSync.lastLocalSnapshot = JSON.stringify(state.projects);
+            saveState();
+            if (currentScreen === "home" || currentScreen === "projects") render();
+            notify("Thiết bị khác vừa cập nhật dự án. Đã tải dữ liệu mới nhất; hãy thử lại thay đổi.");
+          } else if (error.status === 401) {
+            stopProjectSync();
+            notify("Phiên 123HOST đã hết hạn. Hãy đăng nhập lại để đồng bộ dự án.");
+          } else {
+            notify(`Dự án chưa đồng bộ lên máy chủ: ${error.message}`);
+            scheduleSharedProjectSave(10000);
+          }
+        } finally {
+          projectSync.saving = false;
+          if (projectSync.pendingWrite) {
+            projectSync.pendingWrite = false;
+            scheduleSharedProjectSave();
+          }
+        }
+      }
+
+
       function updateAppBadge(count) {
         if (typeof navigator.setAppBadge !== "function") return;
         try {
@@ -991,7 +1172,18 @@
 
       function handleAction(action, target) {
         const id = target.dataset.id;
+        if (["new-project", "edit-project", "delete-project", "edit-project-tasks", "toggle-project"].includes(action) && !apiState.authenticated) {
+          notify("Hãy đăng nhập tài khoản 123HOST để đồng bộ và chỉnh sửa dự án.");
+          openApiLogin();
+          return;
+        }
         if (action === "connect-api") openApiLogin();
+        else if (action === "project-sync-now") {
+          loadSharedProjects().catch((error) => {
+            console.error("Không thể đồng bộ dự án:", error);
+            notify(`Không thể đồng bộ dự án: ${error.message}`);
+          });
+        }
         else if (action === "open-domain-alert") {
           domainQuery = target.dataset.name || "";
           domainPage = 1;
@@ -1090,6 +1282,7 @@
           }
           apiState.authenticated = false;
           apiState.client = null;
+          stopProjectSync();
           apiState.domains = [];
           apiState.services = [];
           apiState.servicesLoaded = false;
@@ -1322,6 +1515,12 @@
       document.addEventListener("change", (event) => {
         const input = event.target;
         if (input.matches("[data-action='task-toggle']")) {
+          if (!apiState.authenticated) {
+            input.checked = !input.checked;
+            notify("Hãy đăng nhập tài khoản 123HOST để đồng bộ và chỉnh sửa dự án.");
+            openApiLogin();
+            return;
+          }
           const project = state.projects.find((item) => item.id === input.dataset.id);
           if (!project || !project.tasks[input.dataset.index]) return;
           project.tasks[input.dataset.index].done = input.checked;
@@ -1347,6 +1546,14 @@
         event.preventDefault();
         const action = event.submitter?.dataset.action || modalRoot.querySelector("[type='submit'][data-action]")?.dataset.action;
         if (!action) return;
+        if (action === "initialize-project-workspace") {
+          if (event.target.dataset.submitting === "true") return;
+          event.target.dataset.submitting = "true";
+          initializeSharedProjects().finally(() => {
+            if (event.target.isConnected) event.target.dataset.submitting = "false";
+          });
+          return;
+        }
         if (["connect-api", "save-api-nameservers", "renew-api-domain", "create-api-record", "update-api-record", "confirm-delete-api-record"].includes(action)) {
           if (!event.target.reportValidity()) return;
           const form = event.target;
@@ -1380,6 +1587,11 @@
           return;
         }
         if (action === "create-project" || action === "update-project" || action === "update-project-tasks" || action === "delete-project" || action === "create-vps" || action === "create-domain") {
+          if (["create-project", "update-project", "update-project-tasks", "delete-project"].includes(action) && !apiState.authenticated) {
+            notify("Hãy đăng nhập tài khoản 123HOST để đồng bộ và chỉnh sửa dự án.");
+            openApiLogin();
+            return;
+          }
           submitForm(action);
         } else if (action === "save-dns") {
           const values = new FormData(event.target);

@@ -42,7 +42,8 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 - Thêm VPS, xem thống kê máy chủ và dung lượng tài khoản hosting.
 - Điều chỉnh tùy chọn thông báo và nhắc gia hạn.
 - Cài ứng dụng lên màn hình chính; số cảnh báo tên miền và thông báo 123HOST được đồng bộ lên biểu tượng trên trình duyệt/thiết bị có hỗ trợ App Badging API. Số chỉ cập nhật khi ứng dụng mở hoặc đồng bộ; nhận cập nhật nền khi ứng dụng đóng cần tích hợp dịch vụ push.
-- Lưu dữ liệu trên trình duyệt bằng `localStorage`, không mất khi tải lại trang.
+- Lưu dữ liệu tên miền, hosting, VPS và tùy chọn khác trên trình duyệt bằng `localStorage`; dữ liệu dự án đồng bộ qua không gian chung khi đã cấu hình trên Vercel.
+- Dự án được đồng bộ giữa các thiết bị bằng một không gian làm việc chung trên Vercel/Supabase. Cần đăng nhập 123HOST để truy cập; mọi tài khoản 123HOST đều thấy cùng danh sách, không phụ thuộc tài khoản đang đăng nhập. Các dữ liệu khác vẫn giữ cách lưu hiện tại.
 - Kết nối API 123HOST qua máy chủ localhost; đồng bộ tên miền, hồ sơ và thông báo khi khôi phục phiên; chỉ tải dịch vụ/hóa đơn khi mở Hosting.
 - Danh sách tên miền, thẻ cảnh báo trang chủ, huy hiệu chuông và nhóm hạn trong hộp thông báo dùng chung bộ phân loại từ 123HOST `GET /domain` (`expires`, `daytoexpire`); tự đồng bộ danh sách đầy đủ khi mở màn Tên Miền & DNS hoặc chuông. Thông báo portal mới được tải khi khôi phục phiên và làm mới khi mở chuông; `GET /notifications/new` chỉ cung cấp danh sách portal, không thay thế danh sách hạn tên miền.
 - Ngày tháng trên giao diện dùng định dạng `dd/mm/yyyy`; giao diện điện thoại có điều hướng dưới cùng, vùng chạm lớn và hộp thoại dạng trang trượt.
@@ -63,6 +64,19 @@ Không dùng `py -m http.server` nếu cần kết nối 123HOST: lệnh đó ch
 ### Chạy trên Vercel
 
 Vercel dùng hàm serverless trong `api/[...path].js`. Rewrite trong `vercel.json` chuyển các API nhiều cấp `/api/123host/...` tới proxy 123HOST.
+
+#### Đồng bộ dự án giữa thiết bị
+
+1. Tạo một project trên Supabase.
+2. Trong **Supabase → SQL Editor**, chạy nội dung của [`db/project-workspace.sql`](./db/project-workspace.sql). Bảng bật Row Level Security và không cấp quyền truy cập trực tiếp cho trình duyệt; chỉ hàm Vercel dùng service-role key mới truy cập bảng.
+3. Trong **Supabase → Project Settings → API**, lấy Project URL và `service_role` key. Thêm các biến sau trong **Vercel → Project → Settings → Environment Variables** cho Production (và Preview nếu cần):
+   - `SUPABASE_URL`: Project URL của Supabase.
+   - `SUPABASE_SERVICE_ROLE_KEY`: service-role key; đây là bí mật, chỉ lưu trong biến môi trường Vercel.
+4. Triển khai lại Vercel. Đăng nhập 123HOST trên thiết bị đang có dữ liệu dự án chính xác; khi database chưa có dữ liệu, xác nhận **Khởi tạo danh sách chung**. Sau đó đăng nhập 123HOST trên mobile, tablet và desktop để xem và sửa cùng bộ dự án. Tài khoản 123HOST khác nhau vẫn dùng chung danh sách dự án.
+
+Không chia sẻ service-role key. Bất kỳ tài khoản 123HOST nào đăng nhập được vào ứng dụng đều có thể xem và sửa bộ dự án chung. Dữ liệu dự án cũ trên các thiết bị khác nhau không thể tự hợp nhất; hãy khởi tạo từ thiết bị có bộ dự án chính xác.
+
+#### Kết nối 123HOST
 
 1. Thêm biến môi trường `DEVHQ_SESSION_SECRET` trong **Vercel → Project → Settings → Environment Variables**. Dùng giá trị ngẫu nhiên dài ít nhất 32 ký tự; có thể tạo bằng PowerShell:
 

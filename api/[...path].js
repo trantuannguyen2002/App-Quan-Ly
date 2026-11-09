@@ -376,3 +376,8 @@ module.exports = async function handler(req, res) {
     return sendJson(res, status, { error: message });
   }
 };
+
+module.exports.getAuthenticatedSession = function getAuthenticatedSession(req) {
+  const key = getEncryptionKey();
+  return decryptSession(getCookie(req, COOKIE_NAME), key);
+};
