@@ -490,7 +490,8 @@
           method: options.method || "GET",
           credentials: "same-origin",
           headers: options.body ? { "Content-Type": "application/json" } : {},
-          body: options.body ? JSON.stringify(options.body) : undefined
+          body: options.body ? JSON.stringify(options.body) : undefined,
+          signal: AbortSignal.timeout(12000)
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -823,8 +824,15 @@
           const detailsPromise = (async () => {
             if (!servicesForDetails.length) return;
 
+            // Giới hạn thời gian chờ tổng để một dịch vụ lỗi không giữ trạng thái đồng bộ vô hạn.
+            const detailDeadline = Date.now() + 90000;
+
             // Gọi tuần tự để tránh các request chi tiết tranh phiên/token 123HOST.
             for (const service of servicesForDetails) {
+              if (Date.now() >= detailDeadline) {
+                failures.push("Đã tạm dừng tải chi tiết các dịch vụ còn lại sau 90 giây; danh sách dịch vụ đã được hiển thị.");
+                break;
+              }
               const serviceId = String(
                 service?.id ?? service?.serviceid ?? service?.service_id ?? service?.hostingid ?? ""
               ).trim();
@@ -866,6 +874,9 @@
                 ...apiState.services[currentIndex],
                 _123hostServiceDetail: detailData
               };
+
+              // Cập nhật ngay từng dịch vụ để người dùng thấy kết quả, không phải chờ hết toàn bộ danh sách.
+              if (currentScreen === "hosting") render();
 
               // Giữ nhịp gọi tuần tự ngắn để hạn chế 123HOST throttling.
               if (servicesForDetails.length > 1) {
@@ -1184,7 +1195,8 @@
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: body ? JSON.stringify(body) : undefined,
-          cache: "no-store"
+          cache: "no-store",
+          signal: AbortSignal.timeout(12000)
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
