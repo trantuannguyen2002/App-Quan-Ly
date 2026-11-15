@@ -434,10 +434,6 @@
       }
 
       function renderHosting() {
-        if (apiState.authenticated && !apiState.hostingSyncComplete) {
-          return `${heading("Dịch Vụ Hosting","Đang đồng bộ đầy đủ dữ liệu từ 123HOST. Kết quả sẽ hiển thị sau khi hoàn tất.",`<span class="status-pill orange">Đang đồng bộ</span>`)}
-            <section class="panel"><div class="empty-state">Đang tải danh sách dịch vụ, chi tiết từng Hosting, hóa đơn và thông tin tài khoản từ 123HOST...<br>Vui lòng chờ, dữ liệu sẽ chỉ hiển thị khi quá trình đồng bộ hoàn tất.</div></section>`;
-        }
         if (apiState.authenticated) {
           const sortedServices = [...apiState.services].sort((left, right) =>
             Number(String(right.status || "").trim().toLowerCase() === "active")
@@ -971,13 +967,14 @@
           apiState.authenticated = session.authenticated === true;
           apiState.client = session.client || null;
           render();
+          // Đóng màn hình chờ ngay sau khi xác định phiên đăng nhập.
+          // Dữ liệu các mục, bao gồm Hosting, tiếp tục đồng bộ nền và render dần.
+          setAppSyncScreen(false);
           if (apiState.authenticated) {
-            await loadSharedProjects().catch((error) => {
+            loadSharedProjects().catch((error) => {
               console.error("Không thể tải dự án dùng chung:", error);
               notify(`Chưa thể đồng bộ dự án: ${error.message}`);
-            });
-            // Giữ màn hình chờ cho đến khi toàn bộ dữ liệu 123HOST tải xong.
-            await syncAllApiData();
+            }).finally(() => syncAllApiData());
           } else {
             stopProjectSync();
           }
@@ -1645,8 +1642,6 @@
 
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
-        setAppSyncScreen(true);
-
         let feedbackTimer = null;
         const syncTask = (async () => {
           try {
@@ -1702,7 +1697,6 @@
           return await Promise.race([syncTask, quickFeedback]);
         } finally {
           if (feedbackTimer !== null) window.clearTimeout(feedbackTimer);
-          setAppSyncScreen(false);
         }
       }
 
