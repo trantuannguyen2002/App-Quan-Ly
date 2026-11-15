@@ -579,8 +579,14 @@
         // Các tên trường tương đương của đúng cột Expires trong API 123HOST.
         // Cố ý không nhận Next Due, Renewal Date hoặc ngày hóa đơn.
         const expiresKeys = new Set([
-          "expires", "expirydate", "expiredate", "expirationdate",
-          "dateexpire", "expireon", "enddate"
+          // Tên trường ngày hết hạn thường gặp trong API/response 123HOST.
+          // Không đưa nextduedate/nextdue vào đây vì đó là ngày đến hạn hóa đơn,
+          // không nhất thiết trùng cột Expires của dịch vụ.
+          "expires", "expireson", "expiresat",
+          "expirydate", "expiry", "expiryat",
+          "expiredate", "expire", "expireon", "expireat",
+          "expirationdate", "expiration",
+          "dateexpire", "enddate"
         ]);
         const findExpires = (source, depth = 0, visited = new Set()) => {
           if (!source || typeof source !== "object" || depth > 12 || visited.has(source)) return "";
