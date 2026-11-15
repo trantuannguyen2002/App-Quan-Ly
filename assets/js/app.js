@@ -355,13 +355,13 @@
           : service._123hostExpiryMismatch
             ? "· CHÊNH LỆCH DỮ LIỆU"
             : service._123hostExpiryVerified
-              ? "· DỮ LIỆU TRÙNG KHỚP"
+              ? "· ĐÃ ĐỐI CHIẾU CHÍNH XÁC"
               : service._123hostDetailExpiryAvailable
                 ? "· ĐÃ XÁC MINH TỪ 123HOST"
                 : "· CHƯA XÁC MINH";
         const expiryStateColor = detailsPending ? "#ffad32"
           : service._123hostExpiryMismatch ? "#ff6b6b"
-          : service._123hostExpiryVerified || service._123hostDetailExpiryAvailable ? "#35c98a" : "#aab6c8";
+          : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8";
         const expiryLabel = hasExpiryDate
           ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
           : detailsPending
