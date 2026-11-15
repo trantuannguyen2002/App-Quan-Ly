@@ -1640,13 +1640,18 @@
         }, 45000);
       }
 
+      let apiSyncPromise = null;
+
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
-        let feedbackTimer = null;
-        const syncTask = (async () => {
+        // Mọi điểm gọi (tự động, mở Hosting, nút Đồng bộ) dùng chung một lượt đồng bộ.
+        // Tránh nhiều luồng cùng xoay refresh-token 123HOST và ghi đè kết quả lẫn nhau.
+        if (apiSyncPromise) return apiSyncPromise;
+
+        apiSyncPromise = (async () => {
           try {
-            // Ưu tiên đồng bộ Hosting trước để kết quả Hosting không phải chờ
-            // tên miền và thông báo. Vẫn gọi tuần tự để bảo toàn refresh-token 123HOST.
+            // Ưu tiên hoàn tất toàn bộ Hosting (chi tiết dịch vụ + hóa đơn + số dư)
+            // trước khi chuyển sang tên miền và thông báo.
             apiState.servicesLoaded = false;
             apiState.invoicesLoaded = false;
             apiState.balanceLoaded = false;
@@ -1678,25 +1683,9 @@
         })();
 
         try {
-          // Sau 10 giây mở giao diện và báo tiến độ hiện có; tác vụ đồng bộ
-          // vẫn tiếp tục chạy nền, cập nhật dữ liệu và báo kết quả cuối cùng.
-          const quickFeedback = new Promise((resolve) => {
-            feedbackTimer = window.setTimeout(() => {
-              const hasInitialData =
-                apiState.domainsLastSyncedAt instanceof Date ||
-                apiState.servicesLoaded;
-
-              if (!hasInitialData) {
-                notify("123HOST phản hồi chậm hơn 10 giây. Ứng dụng sẽ tiếp tục đồng bộ ở chế độ nền và thông báo khi có kết quả.");
-              }
-
-              resolve({ pending: true });
-            }, 10000);
-          });
-
-          return await Promise.race([syncTask, quickFeedback]);
+          return await apiSyncPromise;
         } finally {
-          if (feedbackTimer !== null) window.clearTimeout(feedbackTimer);
+          apiSyncPromise = null;
         }
       }
 
