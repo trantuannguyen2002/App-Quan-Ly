@@ -805,6 +805,10 @@
         if (hostingLoadPromise) return hostingLoadPromise;
         if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.balanceLoaded) return;
 
+        apiState.hostingSyncComplete = false;
+        apiState.hostingSyncError = "";
+        if (currentScreen === "hosting") render();
+
         hostingLoadPromise = (async () => {
           const failures = [];
           let servicesForDetails = [];
@@ -946,9 +950,16 @@
         })();
 
         try {
-          return await hostingLoadPromise;
+          const result = await hostingLoadPromise;
+          apiState.hostingSyncError = Array.isArray(result) && result.length ? result.join("; ") : "";
+          return result;
+        } catch (error) {
+          apiState.hostingSyncError = error?.message || "Không thể đồng bộ dữ liệu Hosting.";
+          throw error;
         } finally {
           hostingLoadPromise = null;
+          apiState.hostingSyncComplete = true;
+          if (currentScreen === "hosting") render();
         }
       }
 
@@ -1633,8 +1644,6 @@
 
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
-        apiState.hostingSyncComplete = false;
-        if (currentScreen === "hosting") render();
         setAppSyncScreen(true);
 
         let feedbackTimer = null;
@@ -1668,10 +1677,6 @@
             console.error("Đồng bộ tổng thể 123HOST thất bại:", error);
             notify(`Đồng bộ thất bại: ${error.message}`);
             return { success: false, failures: [error.message], reason: error.message };
-          } finally {
-            // Chỉ mở kết quả Hosting sau khi toàn bộ quy trình đồng bộ kết thúc.
-            apiState.hostingSyncComplete = true;
-            if (currentScreen === "hosting") render();
           }
         })();
 
