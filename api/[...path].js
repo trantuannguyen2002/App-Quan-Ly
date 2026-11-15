@@ -265,8 +265,9 @@ async function handleProviderRoute(req, res, key, session, path) {
       throw new ApiError(502, "123HOST tráº£ vá» chi tiáº¿t dá»‹ch vá»¥ khÃ´ng há»£p lá»‡.");
     }
     const safeFields = new Set([
-      "id", "domain", "hostname", "name", "status", "expires", "expire", "expiration",
-      "expiration_date", "expires_at", "expiry", "expiry_date", "next_due", "nextdue",
+      "id", "domain", "hostname", "name", "status", "expires", "expire", "expiredate",
+      "expiration", "expiration_date", "expirationdate", "expires_at", "expiry",
+      "expiry_date", "expirydate", "next_due", "nextdue", "next_due_date", "nextduedate",
       "next_invoice", "due_date", "duedate", "date_created", "billingcycle"
     ]);
     setSessionCookie(res, session, key);
