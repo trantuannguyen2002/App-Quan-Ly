@@ -347,7 +347,7 @@
           : `Còn ${expiry.days} ngày`;
         const expiryLabel = hasExpiryDate
           ? esc(expiry.date)
-          : '<span style="color:#9aa9bd">Chưa có dữ liệu Expires từ chi tiết 123HOST</span>';
+          : '<span style="color:#9aa9bd">Chưa có dữ liệu Expires từ 123HOST</span>';
         const active = !warning && status.trim().toLowerCase() === "active";
         return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${expiryLabel}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
@@ -576,15 +576,36 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Chỉ lấy đúng trường Expires của bản ghi trong danh sách /service.
-        // Không đọc API chi tiết, Next Due, Renewal Date hoặc ngày hóa đơn.
-        const expiresEntry = Object.entries(service).find(([key]) =>
-          key.toLowerCase().replace(/[^a-z0-9]/g, "") === "expires"
-        );
-        const value = expiresEntry?.[1];
-        if (value === null || value === undefined) return "";
-        const normalized = String(value).trim();
-        return normalized && !/^0000-00-00(?:\\s|$)/.test(normalized) ? normalized : "";
+        // Ưu tiên đúng trường Expires ở danh sách dịch vụ.
+        // Nếu danh sách không có, đọc đúng trường Expires trong API chi tiết dịch vụ.
+        // Không dùng Next Due, Renewal Date hoặc ngày hóa đơn thay thế.
+        const findExactExpires = (source, depth = 0, visited = new Set()) => {
+          if (!source || typeof source !== "object" || depth > 12 || visited.has(source)) return "";
+          visited.add(source);
+          if (Array.isArray(source)) {
+            for (const item of source) {
+              const found = findExactExpires(item, depth + 1, visited);
+              if (found !== "") return found;
+            }
+            return "";
+          }
+          for (const [key, value] of Object.entries(source)) {
+            if (key.toLowerCase().replace(/[^a-z0-9]/g, "") === "expires" &&
+                value !== null && value !== undefined) {
+              const normalized = String(value).trim();
+              if (normalized && !/^0000-00-00(?:\\s|$)/.test(normalized)) return normalized;
+            }
+          }
+          for (const value of Object.values(source)) {
+            if (value && typeof value === "object") {
+              const found = findExactExpires(value, depth + 1, visited);
+              if (found !== "") return found;
+            }
+          }
+          return "";
+        };
+
+        return findExactExpires(service) || findExactExpires(service._123hostServiceDetail);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
