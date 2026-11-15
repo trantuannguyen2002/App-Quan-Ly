@@ -576,155 +576,57 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Chỉ nhận ngày hết hạn thực tế; tuyệt đối không lấy Next Due / ngày hóa đơn.
-        const cleanDate = (value) => {
-          if (value === null || value === undefined || typeof value === "object") return "";
-          const text = String(value).trim();
-          if (!text || /^0000-00-00(?:\\s|$)/.test(text)) return "";
-          // Chỉ nhận định dạng ngày có thể kiểm tra được, tránh lấy nhầm chuỗi mô tả.
-          if (/^\\d{4}-\\d{2}-\\d{2}(?:$|[T\\s])/.test(text) ||
-              /^\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{4}$/.test(text) ||
-              /^\\d{1,2}\\s+Th\\d{1,2},?\\s*\\d{4}$/i.test(text) ||
-              /^\\d{10}$/.test(text) || /^\\d{13}$/.test(text)) return text;
-          return "";
-        };
-        const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const expiryKey = (key) => {
-          const k = normalize(key);
-          // Không cho phép trường đến hạn thanh toán / gia hạn lấn át Expires.
-          if (/nextdue|duedate|renew|invoice|payment|billing/.test(k)) return false;
-          return /(^|)(expires?|expiry|expiration)(date|on|at|time)?$/.test(k) ||
-            /^(date|hosting|service)(expires?|expiry|expiration)(date|on|at)?$/.test(k);
-        };
-        const labelKey = new Set(["name", "label", "key", "field", "fieldname", "fieldlabel", "title", "displayname"]);
-        const valueKeys = new Set(["value", "date", "fieldvalue", "field_value", "content", "rawvalue", "val"]);
-        const visited = new Set();
+        const validDateValue = (value) =>
+          value !== null &&
+          value !== undefined &&
+          String(value).trim() !== "" &&
+          !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
 
-        const walk = (source, depth = 0) => {
-          if (!source || typeof source !== "object" || depth > 18 || visited.has(source)) return "";
-          visited.add(source);
-
-          if (Array.isArray(source)) {
-            for (const item of source) {
-              const found = walk(item, depth + 1);
-              if (found) return found;
-            }
-            return "";
-          }
-
-          const entries = Object.entries(source);
-          // Custom field dạng { name/label: "Expires", value/fieldvalue: "YYYY-MM-DD" }.
-          const labelEntry = entries.find(([key, value]) =>
-            labelKey.has(normalize(key)) &&
-            typeof value === "string" &&
-            /^(expires?|expiry|expiration)(date|on|at)?$/i.test(normalize(value))
-          );
-          if (labelEntry) {
-            for (const [key, value] of entries) {
-              if (valueKeys.has(normalize(key))) {
-                const date = cleanDate(value);
-                if (date) return date;
-              }
-            }
-          }
-
-          // Một số API trả custom fields theo dạng { "Expires": "YYYY-MM-DD" }.
-          for (const [key, value] of entries) {
-            if (!expiryKey(key)) continue;
-            const direct = cleanDate(value);
-            if (direct) return direct;
-            if (value && typeof value === "object") {
-              for (const [nestedKey, nestedValue] of Object.entries(value)) {
-                if (valueKeys.has(normalize(nestedKey)) || ["date", "timestamp", "datetime"].includes(normalize(nestedKey))) {
-                  const nested = cleanDate(nestedValue);
-                  if (nested) return nested;
-                }
-              }
-            }
-          }
-
-          // Duyệt các nhánh service/details/customfields/data mà không đọc Next Due.
-          for (const [key, value] of entries) {
-            if (value && typeof value === "object" && !/nextdue|duedate|renew|invoice|payment|billing/i.test(key)) {
-              const found = walk(value, depth + 1);
-              if (found) return found;
-            }
-          }
-          return "";
-        };
-
-        // Ưu tiên Expires thực tế. Nếu API không trả Expires, dùng ngày gia hạn
-        // (Next Due / Renewal Date) làm phương án thay thế để vẫn hiển thị mốc gia hạn.
-        const actualExpiry = walk(service);
-        if (actualExpiry) return actualExpiry;
-
-        const renewalKeys = new Set([
-          "nextduedate", "nextdue", "nextrenewaldate", "renewaldate",
-          "renewdate", "renewal", "renewaldateutc", "nextrenewal"
+        const expiryKeys = new Set([
+          "expires", "expire", "expiredate", "expiry", "expirydate",
+          "expiration", "expirationdate", "dateexpire", "expireon",
+          "enddate", "renewaldate", "renewdate", "nextduedate",
+          "nextdue", "nextrenewaldate"
         ]);
-        const renewalLabels = /^(nextdue(date)?|renewal(date)?|renew(date)?|nextrenewal(date)?)$/i;
-        const renewalVisited = new Set();
-        const findRenewalDate = (source, depth = 0) => {
-          if (!source || typeof source !== "object" || depth > 18 || renewalVisited.has(source)) return "";
-          renewalVisited.add(source);
 
-          if (Array.isArray(source)) {
-            for (const item of source) {
-              const found = findRenewalDate(item, depth + 1);
-              if (found) return found;
+        const findExpiryField = (source) => {
+          const visited = new Set();
+          const matches = [];
+          const walk = (value, depth = 0) => {
+            if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return;
+            visited.add(value);
+            if (Array.isArray(value)) {
+              value.forEach((item) => walk(item, depth + 1));
+              return;
             }
-            return "";
-          }
-
-          const entries = Object.entries(source);
-          const labelEntry = entries.find(([key, value]) =>
-            labelKey.has(normalize(key)) &&
-            typeof value === "string" &&
-            renewalLabels.test(normalize(value))
-          );
-          if (labelEntry) {
-            for (const [key, value] of entries) {
-              if (valueKeys.has(normalize(key))) {
-                const date = cleanDate(value);
-                if (date) return date;
+            for (const [key, item] of Object.entries(value)) {
+              const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+              if (validDateValue(item) && expiryKeys.has(normalizedKey) &&
+                (typeof item === "string" || typeof item === "number")) {
+                matches.push({ key: normalizedKey, value: item });
               }
+              if (item && typeof item === "object") walk(item, depth + 1);
             }
-          }
-
-          for (const [key, value] of entries) {
-            const normalizedKey = normalize(key);
-            if (/invoice|payment|billing|transaction|amount|total/.test(normalizedKey)) continue;
-            if (renewalKeys.has(normalizedKey)) {
-              const direct = cleanDate(value);
-              if (direct) return direct;
-              if (value && typeof value === "object") {
-                for (const [nestedKey, nestedValue] of Object.entries(value)) {
-                  if (valueKeys.has(normalize(nestedKey)) || ["date", "timestamp", "datetime"].includes(normalize(nestedKey))) {
-                    const nested = cleanDate(nestedValue);
-                    if (nested) return nested;
-                  }
-                }
-              }
-            }
-          }
-
-          for (const [key, value] of entries) {
-            if (value && typeof value === "object" &&
-                !/invoice|payment|billing|transaction|amount|total/.test(normalize(key))) {
-              const found = findRenewalDate(value, depth + 1);
-              if (found) return found;
-            }
-          }
-          return "";
+          };
+          walk(source);
+          const preferred = matches.find((entry) => entry.key === "expires");
+          return preferred?.value ?? matches[0]?.value ?? "";
         };
 
-        const serviceRenewalDate = findRenewalDate(service);
-        if (serviceRenewalDate) return serviceRenewalDate;
+        // Ưu tiên ngày hết hạn thực tế từ API chi tiết dịch vụ.
+        if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
+          const detailExpiry = findExpiryField(service._123hostServiceDetail);
+          if (detailExpiry !== "") return detailExpiry;
+        }
 
-        // Ngày gia hạn đã được đối chiếu từ hóa đơn liên kết với đúng dịch vụ.
-        // Trước đây trường invoiceRenewalDate đã được gắn vào service nhưng chưa
-        // được đọc tại đây nên giao diện vẫn báo thiếu ngày.
-        return cleanDate(service.invoiceRenewalDate);
+        // Tiếp theo là ngày hết hạn có sẵn trong danh sách dịch vụ.
+        const serviceExpiry = findExpiryField(service);
+        if (serviceExpiry !== "") return serviceExpiry;
+
+        // Dự phòng bằng ngày đến hạn của hóa đơn đã được đối chiếu đúng dịch vụ.
+        if (validDateValue(service.invoiceRenewalDate)) return service.invoiceRenewalDate;
+
+        return "";
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
