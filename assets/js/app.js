@@ -343,7 +343,7 @@
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
         const active = !warning && status.trim().toLowerCase() === "active";
-        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Expires · ${hasExpiryDate ? esc(expiry.date) : "—"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
+        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${hasExpiryDate ? esc(expiry.date) : "Chưa có ngày từ 123HOST"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
 
       function siteCard(site) {
@@ -538,7 +538,14 @@
           value !== null &&
           value !== undefined &&
           String(value).trim() !== "" &&
-          !/^0000-00-00(?:\s|$)/.test(String(value).trim());
+          !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
+
+        const expiryKeys = new Set([
+          "expires", "expire", "expiredate", "expiry", "expirydate",
+          "expiration", "expirationdate", "dateexpire", "expireon",
+          "enddate", "renewaldate", "renewdate", "nextduedate",
+          "nextdue", "nextrenewaldate"
+        ]);
 
         const findExpiryField = (source) => {
           const visited = new Set();
@@ -552,10 +559,8 @@
             }
             for (const [key, item] of Object.entries(value)) {
               const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-              if (validDateValue(item) && [
-                "expires", "expire", "expiredate", "expiry", "expirydate",
-                "expiration", "expirationdate"
-              ].includes(normalizedKey) && (typeof item === "string" || typeof item === "number")) {
+              if (validDateValue(item) && expiryKeys.has(normalizedKey) &&
+                (typeof item === "string" || typeof item === "number")) {
                 matches.push({ key: normalizedKey, value: item });
               }
               if (item && typeof item === "object") walk(item, depth + 1);
@@ -566,17 +571,21 @@
           return preferred?.value ?? matches[0]?.value ?? "";
         };
 
-        // Ưu tiên dữ liệu chi tiết GET /service/{id} từ 123HOST.
+        // Ưu tiên ngày hết hạn thực tế từ API chi tiết dịch vụ.
         if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
           const detailExpiry = findExpiryField(service._123hostServiceDetail);
           if (detailExpiry !== "") return detailExpiry;
         }
 
-        // Chỉ dự phòng bằng trường ngày hết hạn trong danh sách dịch vụ.
-        // Không lấy ngày đến hạn hóa đơn (duedate/next_due).
-        return findExpiryField(service);
-      }
+        // Tiếp theo là ngày hết hạn có sẵn trong danh sách dịch vụ.
+        const serviceExpiry = findExpiryField(service);
+        if (serviceExpiry !== "") return serviceExpiry;
 
+        // Dự phòng bằng ngày đến hạn của hóa đơn đã được đối chiếu đúng dịch vụ.
+        if (validDateValue(service.invoiceRenewalDate)) return service.invoiceRenewalDate;
+
+        return "";
+      }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
         const invoice = data.invoice || data.data?.invoice || data.data || data;
