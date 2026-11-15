@@ -937,13 +937,12 @@
           apiState.client = session.client || null;
           render();
           if (apiState.authenticated) {
-            await loadApiData();
             await loadSharedProjects().catch((error) => {
               console.error("Không thể tải dự án dùng chung:", error);
               notify(`Chưa thể đồng bộ dự án: ${error.message}`);
             });
-            // Đồng bộ Hosting/VPS nền ngay sau khi xác thực, không cần chờ người dùng mở trang hoặc bấm nút.
-            await loadApiHosting();
+            // Tự chạy đầy đủ cùng luồng với nút Đồng bộ sau khi xác thực phiên 123HOST.
+            await syncAllApiData();
           } else {
             stopProjectSync();
           }
@@ -975,13 +974,12 @@
           closeModal();
           render();
           notify("Đăng nhập 123HOST thành công. Đang đồng bộ dữ liệu...");
-          await loadApiData();
           await loadSharedProjects().catch((error) => {
             console.error("Không thể tải dự án dùng chung:", error);
             notify(`Đăng nhập thành công nhưng chưa đồng bộ được dự án: ${error.message}`);
           });
-          // Đồng bộ Hosting/VPS ngay sau đăng nhập để dữ liệu sẵn sàng trước khi người dùng thao tác.
-          await loadApiHosting();
+          // Tự chạy đầy đủ cùng luồng với nút Đồng bộ ngay sau đăng nhập.
+          await syncAllApiData();
         } catch (error) {
           console.error("Đăng nhập 123HOST thất bại:", error);
           if (loginStatus) loginStatus.textContent = error.message;
@@ -1579,6 +1577,17 @@
         }
       }
 
+      // Một luồng đồng bộ dùng chung cho nút Đồng bộ và tự đồng bộ khi mở app/đăng nhập.
+      async function syncAllApiData() {
+        if (!apiState.authenticated) return;
+        await loadApiData();
+        // Buộc tải mới Hosting/VPS, chi tiết dịch vụ, hóa đơn và số dư như một lượt đồng bộ thủ công.
+        apiState.servicesLoaded = false;
+        apiState.invoicesLoaded = false;
+        apiState.balanceLoaded = false;
+        await loadApiHosting();
+      }
+
       async function runApiAction(action, target) {
         if (action === "connect-api") {
           openApiLogin();
@@ -1586,13 +1595,7 @@
         }
         if (action === "refresh-api") {
           if (!apiState.authenticated) { openApiLogin(); return; }
-          await loadApiData();
-          if (currentScreen === "hosting") {
-            apiState.servicesLoaded = false;
-            apiState.invoicesLoaded = false;
-            apiState.balanceLoaded = false;
-            await loadApiHosting();
-          }
+          await syncAllApiData();
           return;
         }
         if (action === "disconnect-api") {
