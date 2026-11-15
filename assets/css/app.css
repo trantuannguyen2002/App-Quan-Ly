@@ -399,11 +399,6 @@
   display: none;
 }
 .app-splash::after {
-  content: "Đang đồng bộ dữ liệu từ 123HOST...";
-  margin-top: 4px;
-  color: #c5d3e7;
-  font-size: 12px;
-  font-weight: 560;
-  letter-spacing: .01em;
-  text-align: center;
+  content: none;
+  display: none;
 }
