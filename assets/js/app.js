@@ -576,15 +576,6 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // VPS.UVA06: ngày đã đối chiếu trực tiếp với thông tin 123HOST là 19/11/2026.
-        // Chặn giá trị Expires cũ/sai 19/11/2027 từ API chi tiết hoặc hóa đơn.
-        const serviceIdentity = [service.name, service.domain, service.hostname, service.productname]
-          .filter(Boolean)
-          .map((value) => String(value).toLowerCase().replace(/[^a-z0-9]/g, ""));
-        if (serviceIdentity.some((value) => value.includes("uva06"))) {
-          return "2026-11-19";
-        }
-
         const validDateValue = (value) =>
           value !== null &&
           value !== undefined &&
