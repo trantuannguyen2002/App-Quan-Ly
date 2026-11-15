@@ -443,7 +443,7 @@
             Number(String(right.status || "").trim().toLowerCase() === "active")
               - Number(String(left.status || "").trim().toLowerCase() === "active")
           );
-          return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ và ngày hết hạn được tự động cập nhật từ 123HOST.")}
+          return `${heading("Dịch Vụ Hosting","Ngày hết hạn được lấy trực tiếp từ 123HOST. Bấm Đồng bộ để kiểm tra dữ liệu mới nhất.",`<button class="button primary" type="button" data-action="refresh-api" ${apiSyncPromise ? "disabled" : ""}>${apiSyncPromise ? "Đang đồng bộ..." : "↻ Đồng bộ"}</button>`)}
             ${apiState.hostingSyncError ? `<div class="modal-message domain-error" role="alert">Một số dữ liệu Hosting chưa tải được: ${esc(apiState.hostingSyncError)}. Ứng dụng sẽ tự cập nhật khi kết nối 123HOST khả dụng.</div>` : ""}
             <div class="grid hosting-grid">
               <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${!apiState.servicesLoaded ? `<div class="empty-state">Đang tải danh sách Hosting từ 123HOST...</div>` : sortedServices.map(liveServiceCard).join("") || `<div class="empty-state">Tài khoản chưa có dịch vụ hosting.</div>`}</div></section>
