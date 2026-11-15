@@ -314,8 +314,23 @@
 
       function liveServiceCard(service) {
         const status = String(service.status || "Chưa rõ");
-        const active = status.toLowerCase() === "active";
-        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${active ? "green" : "orange"}">${esc(status)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}${service.next_due ? ` · Hạn tiếp theo ${esc(formatDate(service.next_due))}` : ""}</div></article>`;
+        const expiry = getDomainExpiry({
+          status,
+          daytoexpire: service.daytoexpire,
+          days: service.days,
+          expires: service.expires || service.expiry || service.next_due
+        });
+        const warning = expiry.category !== "active";
+        const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
+        const hasExpiryDate = expiry.date !== "Chưa có thông tin";
+        const expiryDateText = hasExpiryDate ? ` · Hết hạn ${esc(expiry.date)}` : "";
+        const expiryText = expiry.days === null
+          ? hasExpiryDate ? `Hạn ${esc(expiry.date)}` : ""
+          : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày${expiryDateText}`
+          : expiry.days === 0 ? warning && !hasExpiryDate ? "Đã hết hạn" : `Hết hạn hôm nay${expiryDateText}`
+          : `Còn ${expiry.days} ngày${expiryDateText}`;
+        const active = !warning && status.trim().toLowerCase() === "active";
+        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
 
       function siteCard(site) {
@@ -405,9 +420,13 @@
 
       function renderHosting() {
         if (apiState.authenticated) {
+          const sortedServices = [...apiState.services].sort((left, right) =>
+            Number(String(right.status || "").trim().toLowerCase() === "active")
+              - Number(String(left.status || "").trim().toLowerCase() === "active")
+          );
           return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ đồng bộ từ tài khoản 123HOST.",`<button class="button" type="button" data-action="refresh-api">↻ &nbsp; Đồng bộ</button>`)}
             <div class="grid hosting-grid">
-              <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${apiState.services.map(liveServiceCard).join("") || `<div class="empty-state">${apiState.servicesLoaded ? "Tài khoản chưa có dịch vụ hosting." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
+              <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${sortedServices.map(liveServiceCard).join("") || `<div class="empty-state">${apiState.servicesLoaded ? "Tài khoản chưa có dịch vụ hosting." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
               <section class="panel">${section("Hóa đơn gần đây", "Chọn một hóa đơn để xem chi tiết.")}<div class="hosting-list">${apiState.invoices.map((invoice) => `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">Hóa đơn #${esc(invoice.number || invoice.id)}</div><div class="card-caption">${esc(formatDate(invoice.date || ""))}${invoice.duedate ? ` · Hạn thanh toán ${esc(formatDate(invoice.duedate))}` : ""}</div></div><span class="status-pill ${String(invoice.status).toLowerCase() === "paid" ? "green" : "orange"}">${esc(invoice.status || "Chưa rõ")}</span></div><div class="card-caption" style="margin-top:9px">Tổng tiền · ${esc(formatMoney(invoice.total, invoice.currency))}</div><button class="button small" style="margin-top:10px" type="button" data-action="api-invoice" data-id="${esc(invoice.id)}">Xem hóa đơn →</button></article>`).join("") || `<div class="empty-state">${apiState.invoicesLoaded ? "Tài khoản chưa có hóa đơn." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
               <section class="panel">${section("Thông tin tài khoản", "Số dư và tín dụng từ 123HOST.")}<div class="modal-message">${!apiState.balanceLoaded ? "Đang tải số dư..." : apiState.balance?.details ? `Đơn vị tiền tệ: <strong>${esc(apiState.balance.details.currency || "")}</strong><br>Số dư hóa đơn: <strong>${esc(formatMoney(apiState.balance.details.acc_balance, apiState.balance.details.currency))}</strong><br>Tín dụng: <strong>${esc(formatMoney(apiState.balance.details.acc_credit, apiState.balance.details.currency))}</strong>` : "123HOST không trả về thông tin số dư."}</div></section>
             </div>`;
