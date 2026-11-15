@@ -494,10 +494,25 @@
       }
 
       function extractApiList(data, key) {
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.[key])) return data[key];
-        if (Array.isArray(data?.data)) return data.data;
-        return null;
+        const visited = new Set();
+        const walk = (value, depth = 0) => {
+          if (!value || typeof value !== "object" || depth > 8 || visited.has(value)) return null;
+          visited.add(value);
+          if (Array.isArray(value)) return value;
+
+          if (Array.isArray(value[key])) return value[key];
+
+          // 123HOST may wrap the requested collection in data/result/response.
+          for (const wrapper of ["data", "result", "response", "payload"]) {
+            if (value[wrapper] && typeof value[wrapper] === "object") {
+              const found = walk(value[wrapper], depth + 1);
+              if (found) return found;
+            }
+          }
+          if (Array.isArray(value.items)) return value.items;
+          return null;
+        };
+        return walk(data);
       }
 
       function getServiceExpiryValue(service) {
@@ -732,7 +747,7 @@
         if (notificationResult.status === "rejected") {
           apiState.notificationsError = `Không tải được thông báo 123HOST: ${notificationResult.reason.message}`;
           apiState.notificationsLoaded = true;
-          failures.push(`notifications: ${notificationResult.reason.message}`);
+          console.warn("Không tải được thông báo 123HOST (không ảnh hưởng đồng bộ Hosting):", notificationResult.reason);
         }
         apiState.loading = false;
         render();
@@ -749,46 +764,70 @@
       async function loadApiHosting() {
         if (hostingLoadPromise) return hostingLoadPromise;
         if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.balanceLoaded) return;
-        hostingLoadPromise = (async () => {
-          const requests = [
-            ["services", "/api/123host/services"],
-            ["invoices", "/api/123host/invoices"],
-            ["balance", "/api/123host/balance"]
-          ];
-          const failures = [];
-          for (const [key, path] of requests) {
-            try {
-              const data = await apiRequest(path);
-              if (key === "services") {
-                const list = extractApiList(data, "services");
-                if (!list) throw new Error("123HOST trả về danh sách dịch vụ sai định dạng.");
 
-                // Danh sách /service có thể không chứa trường Expires đầy đủ.
-                // Lấy chi tiết từng dịch vụ để đọc đúng ngày hết hạn từ API 123HOST.
-                const detailedServices = await Promise.all(list.map(async (service) => {
+        hostingLoadPromise = (async () => {
+          const failures = [];
+          let servicesForDetails = [];
+
+          // Load and render the service list first. Do not wait for 25 detail calls
+          // before showing Hosting; a slow detail endpoint must not leave the page spinning.
+          try {
+            const data = await apiRequest("/api/123host/services");
+            const list = extractApiList(data, "services");
+            if (!list) throw new Error("123HOST trả về danh sách dịch vụ sai định dạng.");
+            apiState.services = list;
+            apiState.servicesLoaded = true;
+            servicesForDetails = list.slice();
+            render();
+          } catch (error) {
+            failures.push(`services: ${error.message}`);
+          }
+
+          // Enrich service cards in the background, with at most 3 concurrent requests.
+          // Keep the complete detail response so Expires can be read from its real field.
+          if (servicesForDetails.length) {
+            void (async () => {
+              let nextIndex = 0;
+              const worker = async () => {
+                while (nextIndex < servicesForDetails.length) {
+                  const index = nextIndex++;
+                  const service = servicesForDetails[index];
                   const serviceId = String(service?.id ?? "").trim();
-                  if (!/^\\d+$/.test(serviceId)) return service;
+                  if (!/^\\d+$/.test(serviceId)) continue;
                   try {
                     const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
-                    const detail = detailData?.service || detailData?.details || detailData?.data?.service || detailData?.data?.details || detailData?.data || detailData;
-                    if (!detail || typeof detail !== "object" || Array.isArray(detail)) return service;
-                    // Giữ nguyên response chi tiết gốc để đọc đúng Expires ở mọi cấp lồng nhau.
-                    return { ...service, _123hostServiceDetail: detail };
+                    if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) continue;
+                    const currentIndex = apiState.services.findIndex((item) => String(item?.id) === serviceId);
+                    if (currentIndex < 0) continue;
+                    apiState.services[currentIndex] = {
+                      ...apiState.services[currentIndex],
+                      _123hostServiceDetail: detailData
+                    };
+                    if (currentScreen === "hosting") render();
                   } catch (error) {
                     console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
-                    return service;
                   }
-                }));
+                }
+              };
+              await Promise.all(Array.from(
+                { length: Math.min(3, servicesForDetails.length) },
+                () => worker()
+              ));
+            })();
+          }
 
-                apiState.services = detailedServices;
-                apiState.servicesLoaded = true;
-              } else if (key === "invoices") {
+          // Invoice and balance requests are independent of service details.
+          for (const [key, path] of [
+            ["invoices", "/api/123host/invoices"],
+            ["balance", "/api/123host/balance"]
+          ]) {
+            try {
+              const data = await apiRequest(path);
+              if (key === "invoices") {
                 const list = extractApiList(data, "invoices");
                 if (!list) throw new Error("123HOST trả về danh sách hóa đơn sai định dạng.");
                 apiState.invoices = list;
                 apiState.invoicesLoaded = true;
-                // Ngày Expires lấy từ trường Ngày đến hạn của chi tiết dịch vụ.
-                // Không gán ngày đến hạn thanh toán hóa đơn (invoice duedate) vào Expires.
               } else {
                 apiState.balance = data;
                 apiState.balanceLoaded = true;
@@ -798,11 +837,13 @@
               failures.push(`${key}: ${error.message}`);
             }
           }
+
           if (failures.length) {
             console.error("Một số dữ liệu Hosting 123HOST chưa tải được:", failures);
-            notify(`Một số dữ liệu Hosting chưa đồng bộ được: ${failures.join("; ")}`);
+            notify(`Hosting chưa đồng bộ đầy đủ: ${failures.join("; ")}`);
           }
         })();
+
         try {
           await hostingLoadPromise;
         } finally {
