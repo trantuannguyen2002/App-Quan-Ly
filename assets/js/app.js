@@ -522,77 +522,119 @@
 
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
-        return data.invoice || data.data?.invoice || data.data || data;
+        const invoice = data.invoice || data.data?.invoice || data.data || data;
+        return invoice && typeof invoice === "object" ? invoice : null;
+      }
+
+      function invoiceRelationIds(invoice) {
+        const ids = new Set();
+        const relationKeys = new Set([
+          "serviceid", "service_id", "relid", "related_id", "relatedid",
+          "hostingid", "hosting_id", "productid", "product_id"
+        ]);
+        const visit = (value, depth = 0) => {
+          if (!value || typeof value !== "object" || depth > 8) return;
+          if (Array.isArray(value)) {
+            value.forEach((entry) => visit(entry, depth + 1));
+            return;
+          }
+          for (const [key, entry] of Object.entries(value)) {
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9_]/g, "");
+            if (relationKeys.has(normalizedKey) && entry !== null && entry !== undefined && String(entry).trim()) {
+              ids.add(String(entry).trim().toLowerCase());
+            }
+            if (entry && typeof entry === "object") visit(entry, depth + 1);
+          }
+        };
+        visit(invoice);
+        return ids;
+      }
+
+      function invoiceTextValues(invoice) {
+        const values = [];
+        const textKeys = /description|name|domain|hostname|service|product|item|label/i;
+        const visit = (value, depth = 0) => {
+          if (depth > 8 || value === null || value === undefined) return;
+          if (typeof value === "string" || typeof value === "number") {
+            values.push(String(value).trim().toLowerCase());
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach((entry) => visit(entry, depth + 1));
+            return;
+          }
+          if (typeof value === "object") {
+            for (const [key, entry] of Object.entries(value)) {
+              if (textKeys.test(key) || (entry && typeof entry === "object")) visit(entry, depth + 1);
+            }
+          }
+        };
+        visit(invoice);
+        return values.filter(Boolean);
       }
 
       function invoiceMatchesService(invoice, service) {
         const serviceId = String(service?.id ?? "").trim().toLowerCase();
+        const relationIds = invoiceRelationIds(invoice);
+        if (serviceId && relationIds.has(serviceId)) return true;
+
         const serviceNames = [service?.domain, service?.hostname, service?.name]
           .map((value) => String(value || "").trim().toLowerCase())
           .filter((value) => value.length >= 4);
-        const invoiceServiceIds = [
-          invoice?.serviceid, invoice?.service_id, invoice?.relid, invoice?.related_id,
-          invoice?.item?.serviceid, invoice?.item?.relid
-        ].map((value) => String(value ?? "").trim().toLowerCase()).filter(Boolean);
-        if (serviceId && invoiceServiceIds.includes(serviceId)) return true;
+        if (!serviceNames.length) return false;
 
-        const itemSources = [
-          ...(Array.isArray(invoice?.items) ? invoice.items : []),
-          ...(Array.isArray(invoice?.items?.item) ? invoice.items.item : []),
-          ...(Array.isArray(invoice?.line_items) ? invoice.line_items : []),
-          ...(Array.isArray(invoice?.products) ? invoice.products : []),
-          ...(invoice?.items && !Array.isArray(invoice.items) ? Object.values(invoice.items) : [])
+        const textValues = invoiceTextValues(invoice);
+        return serviceNames.some((name) => textValues.some((value) =>
+          value === name || value.includes(name) || name.includes(value) && value.length >= 8
+        ));
+      }
+
+      function getInvoiceDueDate(invoice) {
+        if (!invoice || typeof invoice !== "object") return "";
+        const dueKeys = [
+          "duedate", "due_date", "date_due", "payment_due_date",
+          "paybefore", "paymentduedate", "dueDate"
         ];
-        const nestedValues = [];
-        const walk = (value, depth = 0) => {
-          if (depth > 5 || value === null || value === undefined) return;
-          if (typeof value === "string" || typeof value === "number") {
-            nestedValues.push(String(value).toLowerCase());
-            return;
-          }
-          if (Array.isArray(value)) {
-            value.forEach((entry) => walk(entry, depth + 1));
-            return;
-          }
-          if (typeof value === "object") {
-            Object.entries(value).forEach(([key, entry]) => {
-              if (/description|name|domain|hostname|service|relid|related|product|item|id/i.test(key)) walk(entry, depth + 1);
-            });
-          }
-        };
-        walk(invoice);
-        const textValues = [
-          invoice?.description, invoice?.notes, invoice?.item_description,
-          ...itemSources.flatMap((item) => [
-            item?.description, item?.name, item?.domain, item?.hostname,
-            item?.service, item?.service_name, item?.domainname
-          ]),
-          ...nestedValues
-        ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
-        if (serviceNames.some((name) => textValues.some((text) => text.includes(name)))) return true;
-        if (serviceId && textValues.some((text) => new RegExp('(?:service|hosting|dịch vụ|#|id\\s*)\\s*' + serviceId + '(?:\\D|$)', 'i').test(text))) return true;
-        return false;
+        const entries = Object.entries(invoice);
+        for (const key of dueKeys) {
+          const match = entries.find(([field, value]) =>
+            field.toLowerCase() === key.toLowerCase() &&
+            value !== null && value !== undefined && String(value).trim() !== ""
+          );
+          if (match) return match[1];
+        }
+        return "";
       }
 
       async function attachInvoiceRenewalDates(services, invoices) {
         const invoiceList = Array.isArray(invoices) ? invoices : [];
         const candidates = invoiceList.filter((invoice) => invoice && invoice.id !== undefined);
+
+        // Luôn lấy chi tiết hóa đơn để đọc các dòng hàng và mã dịch vụ liên kết.
         const detailedInvoices = await Promise.all(candidates.map(async (invoice) => {
-          if (invoice.items || invoice.line_items || invoice.products || invoice.serviceid || invoice.relid) return invoice;
           try {
             const data = await apiRequest(`/api/123host/invoices/${encodeURIComponent(invoice.id)}`);
-            return { ...invoice, ...normalizeInvoiceDetail(data) };
+            const detail = normalizeInvoiceDetail(data);
+            return detail ? { ...invoice, ...detail } : invoice;
           } catch (error) {
             console.warn(`Không tải được chi tiết hóa đơn #${invoice.id}:`, error);
             return invoice;
           }
         }));
+
         return (Array.isArray(services) ? services : []).map((service) => {
           const matched = detailedInvoices
-            .filter((invoice) => invoiceMatchesService(invoice, service))
-            .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
-          const renewalDate = matched?.duedate || matched?.due_date || matched?.paybefore || matched?.payment_due_date || "";
-          return renewalDate ? { ...service, invoiceRenewalDate: renewalDate, renewalInvoiceId: matched.id } : service;
+            .filter((invoice) => invoiceMatchesService(invoice, service) && getInvoiceDueDate(invoice))
+            .sort((a, b) => {
+              const dateA = String(a.date || a.date_created || "");
+              const dateB = String(b.date || b.date_created || "");
+              return dateB.localeCompare(dateA);
+            })[0];
+
+          const renewalDate = getInvoiceDueDate(matched);
+          return renewalDate
+            ? { ...service, invoiceRenewalDate: renewalDate, renewalInvoiceId: matched.id }
+            : service;
         });
       }
 
