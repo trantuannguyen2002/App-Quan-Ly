@@ -576,36 +576,44 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Ưu tiên đúng trường Expires ở danh sách dịch vụ.
-        // Nếu danh sách không có, đọc đúng trường Expires trong API chi tiết dịch vụ.
-        // Không dùng Next Due, Renewal Date hoặc ngày hóa đơn thay thế.
-        const findExactExpires = (source, depth = 0, visited = new Set()) => {
+        // Các tên trường tương đương của đúng cột Expires trong API 123HOST.
+        // Cố ý không nhận Next Due, Renewal Date hoặc ngày hóa đơn.
+        const expiresKeys = new Set([
+          "expires", "expirydate", "expiredate", "expirationdate",
+          "dateexpire", "expireon", "enddate"
+        ]);
+        const findExpires = (source, depth = 0, visited = new Set()) => {
           if (!source || typeof source !== "object" || depth > 12 || visited.has(source)) return "";
           visited.add(source);
+
           if (Array.isArray(source)) {
             for (const item of source) {
-              const found = findExactExpires(item, depth + 1, visited);
-              if (found !== "") return found;
+              const found = findExpires(item, depth + 1, visited);
+              if (found) return found;
             }
             return "";
           }
+
+          // Ưu tiên tìm trường ngày hết hạn trong object hiện tại trước.
           for (const [key, value] of Object.entries(source)) {
-            if (key.toLowerCase().replace(/[^a-z0-9]/g, "") === "expires" &&
-                value !== null && value !== undefined) {
-              const normalized = String(value).trim();
-              if (normalized && !/^0000-00-00(?:\\s|$)/.test(normalized)) return normalized;
-            }
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (!expiresKeys.has(normalizedKey) || value === null || value === undefined) continue;
+            if (typeof value !== "string" && typeof value !== "number") continue;
+            const normalizedValue = String(value).trim();
+            if (normalizedValue && !/^0000-00-00(?:\\s|$)/.test(normalizedValue)) return normalizedValue;
           }
+
+          // Sau đó mới tìm trong các object lồng nhau của response.
           for (const value of Object.values(source)) {
             if (value && typeof value === "object") {
-              const found = findExactExpires(value, depth + 1, visited);
-              if (found !== "") return found;
+              const found = findExpires(value, depth + 1, visited);
+              if (found) return found;
             }
           }
           return "";
         };
 
-        return findExactExpires(service) || findExactExpires(service._123hostServiceDetail);
+        return findExpires(service) || findExpires(service._123hostServiceDetail);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
