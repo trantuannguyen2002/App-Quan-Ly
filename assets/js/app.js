@@ -894,112 +894,72 @@
           }
 
 
-          // Tải chi tiết TẤT CẢ dịch vụ và chờ hoàn tất trước khi đối chiếu hóa đơn.
-          // Trước đây chạy nền nhưng bên dưới lại gán một mảng services cũ,
-          // làm mất các _123hostServiceDetail vừa tải xong.
+          // Tải chi tiết theo nhóm 3 dịch vụ song song để rút ngắn thời gian đồng bộ.
+          // Giữ mức đồng thời vừa phải để hạn chế 123HOST giới hạn request.
           const detailsPromise = (async () => {
             if (!servicesForDetails.length) return;
-
-            // Giới hạn thời gian chờ tổng để một dịch vụ lỗi không giữ trạng thái đồng bộ vô hạn.
-            const detailDeadline = Date.now() + 90000;
-
-            // Gọi tuần tự để tránh các request chi tiết tranh phiên/token 123HOST.
-            for (const service of servicesForDetails) {
-              if (Date.now() >= detailDeadline) {
-                failures.push("Đã tạm dừng tải chi tiết các dịch vụ còn lại sau 90 giây; danh sách dịch vụ đã được hiển thị.");
-                const pendingIds = new Set(servicesForDetails.slice(servicesForDetails.indexOf(service)).map((item) =>
-                  String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "")
-                ));
-                apiState.services = apiState.services.map((item) => {
-                  const id = String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "");
-                  return pendingIds.has(id) ? { ...item, _123hostDetailChecked: true } : item;
-                });
-                if (currentScreen === "hosting") render();
-                break;
-              }
-              const serviceId = String(
-                service?.id ?? service?.serviceid ?? service?.service_id ?? service?.hostingid ?? ""
-              ).trim();
-              if (!/^\d+$/.test(serviceId)) {
-                failures.push(`services detail: thiếu ID hợp lệ cho ${service?.name || service?.domain || "dịch vụ"}`);
-                const invalidIndex = apiState.services.indexOf(service);
-                if (invalidIndex >= 0) {
-                  apiState.services[invalidIndex] = { ...apiState.services[invalidIndex], _123hostDetailChecked: true };
-                  if (currentScreen === "hosting") render();
+            const detailDeadline = Date.now() + 60000;
+            let nextIndex = 0;
+            const worker = async () => {
+              while (nextIndex < servicesForDetails.length && Date.now() < detailDeadline) {
+                const service = servicesForDetails[nextIndex++];
+                const serviceId = String(service?.id ?? service?.serviceid ?? service?.service_id ?? service?.hostingid ?? "").trim();
+                if (!/^\\d+$/.test(serviceId)) {
+                  failures.push(`services detail: thiếu ID hợp lệ cho ${service?.name || service?.domain || "dịch vụ"}`);
+                  const invalidIndex = apiState.services.findIndex((item) => item === service);
+                  if (invalidIndex >= 0) apiState.services[invalidIndex] = { ...apiState.services[invalidIndex], _123hostDetailChecked: true };
+                  continue;
                 }
-                continue;
-              }
-
-              let detailData = null;
-              let lastError = null;
-              for (let attempt = 0; attempt < 3; attempt++) {
-                try {
-                  detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
-                  if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) {
-                    throw new Error("123HOST trả về chi tiết dịch vụ sai định dạng.");
+                let detailData = null;
+                let lastError = null;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                  try {
+                    detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
+                    if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) throw new Error("123HOST trả về chi tiết dịch vụ sai định dạng.");
+                    lastError = null;
+                    break;
+                  } catch (error) {
+                    lastError = error;
+                    const retryable = /\\b(429|500|502|503|504)\\b|quá nhiều|rate.?limit|thử lại/i.test(String(error?.message || ""));
+                    if (!retryable || attempt === 1) break;
+                    await new Promise((resolve) => setTimeout(resolve, 400));
                   }
-                  lastError = null;
-                  break;
-                } catch (error) {
-                  lastError = error;
-                  const retryable = /\b(429|500|502|503|504)\b|quá nhiều|rate.?limit|thử lại/i.test(String(error?.message || ""));
-                  if (!retryable || attempt === 2) break;
-                  await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
                 }
-              }
-
-              if (lastError) {
-                failures.push(`service #${serviceId}: ${lastError.message}`);
-                console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, lastError);
-                const failedIndex = apiState.services.findIndex((item) =>
-                  String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "") === serviceId
-                );
-                if (failedIndex >= 0) {
-                  apiState.services[failedIndex] = { ...apiState.services[failedIndex], _123hostDetailChecked: true };
-                  if (currentScreen === "hosting") render();
+                const currentIndex = apiState.services.findIndex((item) => String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "") === serviceId);
+                if (lastError) {
+                  failures.push(`service #${serviceId}: ${lastError.message}`);
+                  console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, lastError);
+                  if (currentIndex >= 0) apiState.services[currentIndex] = { ...apiState.services[currentIndex], _123hostDetailChecked: true };
+                  continue;
                 }
-                continue;
+                if (currentIndex < 0) continue;
+                const detailExpiry = findExpiryField(detailData);
+                const listExpiry = findExpiryField(apiState.services[currentIndex]);
+                const detailExpiryDate = detailExpiry !== "" ? getDomainExpiry({ expires: detailExpiry }).date : "";
+                const listExpiryDate = listExpiry !== "" ? getDomainExpiry({ expires: listExpiry }).date : "";
+                const hasBothExpiryDates = detailExpiryDate !== "" && detailExpiryDate !== "Chưa có thông tin" && listExpiryDate !== "" && listExpiryDate !== "Chưa có thông tin";
+                apiState.services[currentIndex] = {
+                  ...apiState.services[currentIndex],
+                  _123hostServiceDetail: detailData,
+                  _123hostDetailChecked: true,
+                  _123hostDetailExpiryAvailable: detailExpiry !== "",
+                  _123hostExpiryVerified: hasBothExpiryDates && detailExpiryDate === listExpiryDate,
+                  _123hostExpiryMismatch: hasBothExpiryDates && detailExpiryDate !== listExpiryDate
+                };
+                if (currentScreen === "hosting") render();
               }
-
-              const currentIndex = apiState.services.findIndex((item) =>
-                String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "") === serviceId
-              );
-              if (currentIndex < 0) continue;
-
-              const detailExpiry = findExpiryField(detailData);
-              const listExpiry = findExpiryField(apiState.services[currentIndex]);
-              const detailExpiryDate = detailExpiry !== ""
-                ? getDomainExpiry({ expires: detailExpiry }).date
-                : "";
-              const listExpiryDate = listExpiry !== ""
-                ? getDomainExpiry({ expires: listExpiry }).date
-                : "";
-              const hasBothExpiryDates = detailExpiryDate !== "" &&
-                detailExpiryDate !== "Chưa có thông tin" &&
-                listExpiryDate !== "" &&
-                listExpiryDate !== "Chưa có thông tin";
-              apiState.services[currentIndex] = {
-                ...apiState.services[currentIndex],
-                _123hostServiceDetail: detailData,
-                _123hostDetailChecked: true,
-                _123hostDetailExpiryAvailable: detailExpiry !== "",
-                _123hostExpiryVerified: hasBothExpiryDates && detailExpiryDate === listExpiryDate,
-                _123hostExpiryMismatch: hasBothExpiryDates && detailExpiryDate !== listExpiryDate
-              };
-
-              // Cập nhật ngay từng dịch vụ để người dùng thấy kết quả, không phải chờ hết toàn bộ danh sách.
-              if (currentScreen === "hosting") render();
-
-              // Giữ nhịp gọi tuần tự ngắn để hạn chế 123HOST throttling.
-              if (servicesForDetails.length > 1) {
-                await new Promise((resolve) => setTimeout(resolve, 75));
-              }
+            };
+            await Promise.all(Array.from({ length: Math.min(3, servicesForDetails.length) }, () => worker()));
+            if (nextIndex < servicesForDetails.length) {
+              failures.push("Đã hết thời gian chờ tải chi tiết một số dịch vụ; vui lòng đồng bộ lại.");
+              const pendingIds = new Set(servicesForDetails.slice(nextIndex).map((item) => String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "")));
+              apiState.services = apiState.services.map((item) => {
+                const id = String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "");
+                return pendingIds.has(id) ? { ...item, _123hostDetailChecked: true } : item;
+              });
             }
-
-            // Chỉ render một lần sau khi tải xong toàn bộ chi tiết để giảm thao tác DOM.
             if (currentScreen === "hosting") render();
           })();
-
           // Chỉ bắt đầu đối chiếu ngày hết hạn sau khi đã tải xong chi tiết dịch vụ.
           // Mọi request 123HOST vẫn chạy tuần tự để tránh tranh refresh-token.
           await detailsPromise;
