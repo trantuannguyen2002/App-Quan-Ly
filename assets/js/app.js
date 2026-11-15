@@ -77,6 +77,7 @@
       let hostingLoadPromise = null;
       let notificationsLoadPromise = null;
       let toastTimer;
+      let appSyncWatchdog = null;
 
       function loadState() {
         try {
@@ -1603,8 +1604,27 @@
       function setAppSyncScreen(visible) {
         const splash = document.querySelector("#app-splash");
         if (!splash) return;
-        splash.classList.toggle("is-hidden", !visible);
-        splash.setAttribute("aria-hidden", visible ? "false" : "true");
+
+        window.clearTimeout(appSyncWatchdog);
+        appSyncWatchdog = null;
+
+        if (!visible) {
+          splash.classList.add("is-hidden");
+          splash.setAttribute("aria-hidden", "true");
+          return;
+        }
+
+        splash.classList.remove("is-hidden");
+        splash.setAttribute("aria-hidden", "false");
+
+        // Không để màn hình chờ che ứng dụng vô thời hạn nếu một bước đồng bộ bị treo.
+        // Dữ liệu vẫn tiếp tục tải nền và được render ngay khi từng API trả kết quả.
+        appSyncWatchdog = window.setTimeout(() => {
+          splash.classList.add("is-hidden");
+          splash.setAttribute("aria-hidden", "true");
+          appSyncWatchdog = null;
+          notify("123HOST phản hồi chậm. Ứng dụng đã hiển thị giao diện; dữ liệu sẽ tiếp tục cập nhật khi tải xong.");
+        }, 45000);
       }
 
       async function syncAllApiData() {
