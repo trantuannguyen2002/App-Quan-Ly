@@ -942,7 +942,8 @@
               console.error("Không thể tải dự án dùng chung:", error);
               notify(`Chưa thể đồng bộ dự án: ${error.message}`);
             });
-            if (currentScreen === "hosting") await loadApiHosting();
+            // Đồng bộ Hosting/VPS nền ngay sau khi xác thực, không cần chờ người dùng mở trang hoặc bấm nút.
+            await loadApiHosting();
           } else {
             stopProjectSync();
           }
@@ -979,7 +980,8 @@
             console.error("Không thể tải dự án dùng chung:", error);
             notify(`Đăng nhập thành công nhưng chưa đồng bộ được dự án: ${error.message}`);
           });
-          if (currentScreen === "hosting") await loadApiHosting();
+          // Đồng bộ Hosting/VPS ngay sau đăng nhập để dữ liệu sẵn sàng trước khi người dùng thao tác.
+          await loadApiHosting();
         } catch (error) {
           console.error("Đăng nhập 123HOST thất bại:", error);
           if (loginStatus) loginStatus.textContent = error.message;
