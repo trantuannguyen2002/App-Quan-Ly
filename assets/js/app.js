@@ -1015,10 +1015,14 @@
           // Dữ liệu các mục, bao gồm Hosting, tiếp tục đồng bộ nền và render dần.
           setAppSyncScreen(false);
           if (apiState.authenticated) {
-            loadSharedProjects().catch((error) => {
-              console.error("Không thể tải dự án dùng chung:", error);
-              notify(`Chưa thể đồng bộ dự án: ${error.message}`);
-            }).finally(() => syncAllApiData());
+            // Ưu tiên đồng bộ 123HOST ngay sau khi xác nhận phiên đăng nhập.
+            // Không chờ tải dự án dùng chung, tránh làm chậm ngày hết hạn Hosting khi mở ứng dụng.
+            syncAllApiData().finally(() => {
+              loadSharedProjects().catch((error) => {
+                console.error("Không thể tải dự án dùng chung:", error);
+                notify(`Chưa thể đồng bộ dự án: ${error.message}`);
+              });
+            });
           } else {
             stopProjectSync();
           }
