@@ -576,18 +576,15 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Ưu tiên ngày Expires từ API chi tiết của chính dịch vụ.
-        // Nếu API chi tiết không trả trường ngày, dùng ngày Expires trong
-        // bản ghi danh sách dịch vụ /service (không dùng ngày hóa đơn).
-        if (service._123hostDetailChecked === true) {
-          const detailExpiry = service._123hostServiceDetail &&
-            typeof service._123hostServiceDetail === "object"
-              ? findExpiryField(service._123hostServiceDetail)
-              : "";
-          if (detailExpiry !== "") return detailExpiry;
-        }
-
-        return findExpiryField(service);
+        // Chỉ lấy đúng trường Expires của bản ghi trong danh sách /service.
+        // Không đọc API chi tiết, Next Due, Renewal Date hoặc ngày hóa đơn.
+        const expiresEntry = Object.entries(service).find(([key]) =>
+          key.toLowerCase().replace(/[^a-z0-9]/g, "") === "expires"
+        );
+        const value = expiresEntry?.[1];
+        if (value === null || value === undefined) return "";
+        const normalized = String(value).trim();
+        return normalized && !/^0000-00-00(?:\\s|$)/.test(normalized) ? normalized : "";
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
