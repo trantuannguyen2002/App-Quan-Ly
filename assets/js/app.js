@@ -502,6 +502,8 @@
 
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
+        // Ngày gia hạn từ hóa đơn Hosting được ưu tiên cao nhất.
+        if (service.invoiceRenewalDate) return service.invoiceRenewalDate;
         const expiryKeys = [
           "expires", "expire", "expiration", "expiration_date", "expirationdate",
           "expires_at", "expiry", "expiry_date", "expirydate", "expiredate",
@@ -516,6 +518,62 @@
           if (match) return match[1];
         }
         return "";
+      }
+
+      function normalizeInvoiceDetail(data) {
+        if (!data || typeof data !== "object") return null;
+        return data.invoice || data.data?.invoice || data.data || data;
+      }
+
+      function invoiceMatchesService(invoice, service) {
+        const serviceId = String(service?.id ?? "").trim().toLowerCase();
+        const serviceNames = [service?.domain, service?.hostname, service?.name]
+          .map((value) => String(value || "").trim().toLowerCase())
+          .filter((value) => value.length >= 4);
+        const invoiceServiceIds = [
+          invoice?.serviceid, invoice?.service_id, invoice?.relid, invoice?.related_id,
+          invoice?.item?.serviceid, invoice?.item?.relid
+        ].map((value) => String(value ?? "").trim().toLowerCase()).filter(Boolean);
+        if (serviceId && invoiceServiceIds.includes(serviceId)) return true;
+
+        const itemSources = [
+          ...(Array.isArray(invoice?.items) ? invoice.items : []),
+          ...(Array.isArray(invoice?.items?.item) ? invoice.items.item : []),
+          ...(Array.isArray(invoice?.line_items) ? invoice.line_items : []),
+          ...(Array.isArray(invoice?.products) ? invoice.products : [])
+        ];
+        const textValues = [
+          invoice?.description, invoice?.notes, invoice?.item_description,
+          ...itemSources.flatMap((item) => [
+            item?.description, item?.name, item?.domain, item?.hostname,
+            item?.service, item?.service_name, item?.domainname
+          ])
+        ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
+        if (serviceNames.some((name) => textValues.some((text) => text.includes(name)))) return true;
+        if (serviceId && textValues.some((text) => new RegExp('(?:service|hosting|dịch vụ|#|id\\s*)\\s*' + serviceId + '(?:\\D|$)', 'i').test(text))) return true;
+        return false;
+      }
+
+      async function attachInvoiceRenewalDates(services, invoices) {
+        const invoiceList = Array.isArray(invoices) ? invoices : [];
+        const candidates = invoiceList.filter((invoice) => invoice && invoice.id !== undefined);
+        const detailedInvoices = await Promise.all(candidates.map(async (invoice) => {
+          if (invoice.items || invoice.line_items || invoice.products || invoice.serviceid || invoice.relid) return invoice;
+          try {
+            const data = await apiRequest(`/api/123host/invoices/${encodeURIComponent(invoice.id)}`);
+            return { ...invoice, ...normalizeInvoiceDetail(data) };
+          } catch (error) {
+            console.warn(`Không tải được chi tiết hóa đơn #${invoice.id}:`, error);
+            return invoice;
+          }
+        }));
+        return (Array.isArray(services) ? services : []).map((service) => {
+          const matched = detailedInvoices
+            .filter((invoice) => invoiceMatchesService(invoice, service))
+            .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+          const renewalDate = matched?.duedate || matched?.due_date || matched?.paybefore || matched?.payment_due_date || "";
+          return renewalDate ? { ...service, invoiceRenewalDate: renewalDate, renewalInvoiceId: matched.id } : service;
+        });
       }
 
       async function loadApiNotifications() {
@@ -640,6 +698,7 @@
                 if (!list) throw new Error("123HOST trả về danh sách hóa đơn sai định dạng.");
                 apiState.invoices = list;
                 apiState.invoicesLoaded = true;
+                apiState.services = await attachInvoiceRenewalDates(apiState.services, list);
               } else {
                 apiState.balance = data;
                 apiState.balanceLoaded = true;
