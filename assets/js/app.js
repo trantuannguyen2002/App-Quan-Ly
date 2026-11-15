@@ -1686,9 +1686,9 @@
                 apiState.domainsLastSyncedAt instanceof Date ||
                 apiState.servicesLoaded;
 
-              notify(hasInitialData
-                ? `Đã nhận dữ liệu ban đầu từ 123HOST (${apiState.domains.length} tên miền, ${apiState.services.length} dịch vụ). Đang tiếp tục cập nhật chi tiết...`
-                : "123HOST phản hồi chậm hơn 10 giây. Ứng dụng sẽ tiếp tục đồng bộ ở chế độ nền và thông báo khi có kết quả.");
+              if (!hasInitialData) {
+                notify("123HOST phản hồi chậm hơn 10 giây. Ứng dụng sẽ tiếp tục đồng bộ ở chế độ nền và thông báo khi có kết quả.");
+              }
 
               resolve({ pending: true });
             }, 10000);
