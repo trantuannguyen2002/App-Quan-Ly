@@ -232,7 +232,7 @@ async function handleProviderRoute(req, res, key, session, path) {
   const fixedRoutes = {
     "/api/123host/details": ["/details", ["GET"]],
     "/api/123host/domains": ["/domain", ["GET"]],
-    "/api/123host/services": ["/services", ["GET"]],
+    "/api/123host/services": ["/service", ["GET"]],
     "/api/123host/invoices": ["/invoice", ["GET"]],
     "/api/123host/balance": ["/balance", ["GET"]],
     "/api/123host/payments": ["/payment", ["GET"]],
