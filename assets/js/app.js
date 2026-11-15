@@ -793,7 +793,7 @@
                   const index = nextIndex++;
                   const service = servicesForDetails[index];
                   const serviceId = String(service?.id ?? "").trim();
-                  if (!/^\\d+$/.test(serviceId)) continue;
+                  if (!/^\d+$/.test(serviceId)) continue;
                   try {
                     const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
                     if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) continue;
