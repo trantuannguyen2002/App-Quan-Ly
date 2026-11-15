@@ -443,8 +443,8 @@
             Number(String(right.status || "").trim().toLowerCase() === "active")
               - Number(String(left.status || "").trim().toLowerCase() === "active")
           );
-          return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ từ tài khoản 123HOST.",`<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:6px;text-align:left"><button class="button" style="align-self:flex-start;font-size:18px;font-weight:750;padding:12px 20px;text-align:left" type="button" data-action="refresh-api"><span aria-hidden="true">👆</span> &nbsp;Đồng bộ</button><span style="font-size:12px;color:#9aa9bd;text-align:left">Bấm vào nút Đồng bộ để đồng bộ Hosting</span></div>`)}
-            ${apiState.hostingSyncError ? `<div class="modal-message domain-error" role="alert">Một số dữ liệu Hosting chưa tải được: ${esc(apiState.hostingSyncError)}<br><button class="link-button" type="button" data-action="refresh-api">Thử đồng bộ lại →</button></div>` : ""}
+          return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ và ngày hết hạn được tự động cập nhật từ 123HOST.")}
+            ${apiState.hostingSyncError ? `<div class="modal-message domain-error" role="alert">Một số dữ liệu Hosting chưa tải được: ${esc(apiState.hostingSyncError)}. Ứng dụng sẽ tự cập nhật khi kết nối 123HOST khả dụng.</div>` : ""}
             <div class="grid hosting-grid">
               <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${!apiState.servicesLoaded ? `<div class="empty-state">Đang tải danh sách Hosting từ 123HOST...</div>` : sortedServices.map(liveServiceCard).join("") || `<div class="empty-state">Tài khoản chưa có dịch vụ hosting.</div>`}</div></section>
               <section class="panel">${section("Hóa đơn gần đây", "Chọn một hóa đơn để xem chi tiết.")}<div class="hosting-list">${apiState.invoices.map((invoice) => `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">Hóa đơn #${esc(invoice.number || invoice.id)}</div><div class="card-caption">${esc(formatDate(invoice.date || ""))}${invoice.duedate ? ` · Hạn thanh toán ${esc(formatDate(invoice.duedate))}` : ""}</div></div><span class="status-pill ${String(invoice.status).toLowerCase() === "paid" ? "green" : "orange"}">${esc(invoice.status || "Chưa rõ")}</span></div><div class="card-caption" style="margin-top:9px">Tổng tiền · ${esc(formatMoney(invoice.total, invoice.currency))}</div><button class="button small" style="margin-top:10px" type="button" data-action="api-invoice" data-id="${esc(invoice.id)}">Xem hóa đơn →</button></article>`).join("") || `<div class="empty-state">${apiState.invoicesLoaded ? "Tài khoản chưa có hóa đơn." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
@@ -1500,14 +1500,11 @@
           });
         }
         if (screen === "hosting" && apiState.authenticated) {
-          // Mỗi lần mở Hosting đều lấy lại dữ liệu mới nhất từ 123HOST.
-          apiState.servicesLoaded = false;
-          apiState.invoicesLoaded = false;
-          apiState.balanceLoaded = false;
-          apiState.hostingDetailsLoaded = false;
-          loadApiHosting().catch((error) => {
-            console.error("Không thể đồng bộ dịch vụ 123HOST:", error);
-            notify(`Không tải được dữ liệu Hosting: ${error.message}`);
+          // Mở Hosting sẽ tự chạy cùng quy trình đồng bộ đầy đủ như trước đây,
+          // bao gồm chi tiết từng dịch vụ và bước đối chiếu cuối cùng.
+          syncAllApiData().catch((error) => {
+            console.error("Không thể hoàn tất đồng bộ 123HOST:", error);
+            notify(`Không thể cập nhật dữ liệu Hosting: ${error.message}`);
           });
         }
         window.scrollTo({ top: 0, behavior: "smooth" });
