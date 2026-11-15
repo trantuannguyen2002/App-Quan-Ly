@@ -503,26 +503,14 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Trường Ngày đến hạn của chi tiết dịch vụ 123HOST là nguồn chuẩn.
-        // Ưu tiên nextduedate/next_due trước expires vì expires có thể là mốc cũ
-        // hoặc mốc chu kỳ khác (ví dụ 19/11/2027 thay vì 19/11/2026).
-        const expiryKeys = [
-          "nextduedate", "next_due_date", "next_due", "nextdue",
-          "duedate", "due_date", "date_due",
-          "expires", "expire", "expiration", "expiration_date", "expirationdate",
-          "expires_at", "expiry", "expiry_date", "expirydate", "expiredate"
-        ];
-        const entries = Object.entries(service);
-        for (const key of expiryKeys) {
-          const match = entries.find(([field, value]) =>
-            field.toLowerCase() === key &&
-            value !== null && value !== undefined &&
-            String(value).trim() !== "" &&
-            !/^0000-00-00(?:\\s|$)/.test(String(value).trim())
-          );
-          if (match) return match[1];
-        }
-        return "";
+        // Cột Expires phải lấy đúng trường "expires" từ API dịch vụ 123HOST.
+        // Không dùng next_due / nextduedate / duedate vì đây là các mốc khác
+        // (ngày đến hạn kỳ tiếp theo hoặc hạn thanh toán), có thể lệch năm.
+        const value = service.expires ?? service.Expires;
+        if (value === null || value === undefined) return "";
+        const normalized = String(value).trim();
+        if (!normalized || /^0000-00-00(?:\\s|$)/.test(normalized)) return "";
+        return value;
       }
 
       function normalizeInvoiceDetail(data) {
