@@ -834,6 +834,30 @@
             failures.push(`services: ${error.message}`);
           }
 
+          // Tải hóa đơn và số dư ngay sau danh sách dịch vụ, không chờ chi tiết từng Hosting.
+          // Vẫn gọi tuần tự để bảo vệ refresh-token/cookie phiên 123HOST.
+          for (const [key, path] of [
+            ["invoices", "/api/123host/invoices"],
+            ["balance", "/api/123host/balance"]
+          ]) {
+            try {
+              const data = await apiRequest(path);
+              if (key === "invoices") {
+                const list = extractApiList(data, "invoices");
+                if (!list) throw new Error("123HOST trả về danh sách hóa đơn sai định dạng.");
+                apiState.invoices = list;
+                apiState.invoicesLoaded = true;
+              } else {
+                apiState.balance = data;
+                apiState.balanceLoaded = true;
+              }
+              render();
+            } catch (error) {
+              failures.push(`${key}: ${error.message}`);
+            }
+          }
+
+
           // Tải chi tiết TẤT CẢ dịch vụ và chờ hoàn tất trước khi đối chiếu hóa đơn.
           // Trước đây chạy nền nhưng bên dưới lại gán một mảng services cũ,
           // làm mất các _123hostServiceDetail vừa tải xong.
@@ -908,28 +932,6 @@
           // Các request cùng lúc có thể dùng chung refresh-token của 123HOST;
           // nếu token được xoay vòng, request song song sẽ nhận phiên cũ và bị từ chối.
           await detailsPromise;
-
-          // Chỉ gọi invoice/balance sau khi mọi service detail đã xong.
-          for (const [key, path] of [
-            ["invoices", "/api/123host/invoices"],
-            ["balance", "/api/123host/balance"]
-          ]) {
-            try {
-              const data = await apiRequest(path);
-              if (key === "invoices") {
-                const list = extractApiList(data, "invoices");
-                if (!list) throw new Error("123HOST trả về danh sách hóa đơn sai định dạng.");
-                apiState.invoices = list;
-                apiState.invoicesLoaded = true;
-              } else {
-                apiState.balance = data;
-                apiState.balanceLoaded = true;
-              }
-              render();
-            } catch (error) {
-              failures.push(`${key}: ${error.message}`);
-            }
-          }
 
           if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.services.length && apiState.invoices.length) {
             try {
