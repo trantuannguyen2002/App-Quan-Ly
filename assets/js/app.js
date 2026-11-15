@@ -851,7 +851,12 @@
             }
           })();
 
-          // Invoice and balance requests are independent of service details.
+          // Hoàn tất toàn bộ request chi tiết trước khi gọi invoice/balance.
+          // Các request cùng lúc có thể dùng chung refresh-token của 123HOST;
+          // nếu token được xoay vòng, request song song sẽ nhận phiên cũ và bị từ chối.
+          await detailsPromise;
+
+          // Chỉ gọi invoice/balance sau khi mọi service detail đã xong.
           for (const [key, path] of [
             ["invoices", "/api/123host/invoices"],
             ["balance", "/api/123host/balance"]
