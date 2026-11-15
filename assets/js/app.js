@@ -592,7 +592,7 @@
           if (!isUva06) return value;
           // 123HOST/app data has previously surfaced this known service as 19/11/2027.
           // Correct only that stale value; a genuinely renewed date passes through unchanged.
-          if (/^(?:19\\/11\\/2027|2027-11-19(?:[ T].*)?)$/.test(raw)) return "2026-11-19";
+          if (raw.replace(/[^0-9]/g, "") === "19112027" || /^2027-11-19(?:[ T].*)?$/.test(raw)) return "2026-11-19";
           return value;
         };
 
