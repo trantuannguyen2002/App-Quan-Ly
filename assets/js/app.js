@@ -125,8 +125,15 @@
         const text = String(value).trim();
         const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
         if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
-        const numeric = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (numeric) return `${numeric[1].padStart(2, "0")}/${numeric[2].padStart(2, "0")}/${numeric[3]}`;
+        const numeric = text.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
+        if (numeric) return numeric[1].padStart(2, "0") + "/" + numeric[2].padStart(2, "0") + "/" + numeric[3];
+        if (/^\\d{10}$/.test(text) || /^\\d{13}$/.test(text)) {
+          const timestamp = Number(text);
+          const date = new Date(text.length === 10 ? timestamp * 1000 : timestamp);
+          if (!Number.isNaN(date.getTime())) {
+            return String(date.getDate()).padStart(2, "0") + "/" + String(date.getMonth() + 1).padStart(2, "0") + "/" + date.getFullYear();
+          }
+        }
         const vietnamese = text.match(/^(\d{1,2})\s+Th(\d{1,2}),?\s*(\d{4})$/i);
         if (vietnamese) return `${vietnamese[1].padStart(2, "0")}/${vietnamese[2].padStart(2, "0")}/${vietnamese[3]}`;
         return text;
@@ -231,10 +238,17 @@
         if (dateParts) {
           dateParts = [dateParts[0], dateParts[1], dateParts[2], dateParts[3]];
         } else {
-          const numericDate = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-          const vietnameseDate = rawDate.match(/^(\d{1,2})\s+Th(\d{1,2}),?\s*(\d{4})$/i);
+          const numericDate = rawDate.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
+          const vietnameseDate = rawDate.match(/^(\\d{1,2})\\s+Th(\\d{1,2}),?\\s*(\\d{4})$/i);
           const parsed = numericDate || vietnameseDate;
           if (parsed) dateParts = [parsed[0], parsed[3], parsed[2], parsed[1]];
+          else if (/^\\d{10}$/.test(rawDate) || /^\\d{13}$/.test(rawDate)) {
+            const timestamp = Number(rawDate);
+            const timestampDate = new Date(rawDate.length === 10 ? timestamp * 1000 : timestamp);
+            if (!Number.isNaN(timestampDate.getTime())) {
+              dateParts = [rawDate, String(timestampDate.getFullYear()), String(timestampDate.getMonth() + 1).padStart(2, "0"), String(timestampDate.getDate()).padStart(2, "0")];
+            }
+          }
         }
         if (dateParts) {
           const year = Number(dateParts[1]);
@@ -327,7 +341,7 @@
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
         const active = !warning && status.trim().toLowerCase() === "active";
-        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Expires · ${hasExpiryDate ? esc(expiry.date) : "Chưa có dữ liệu từ 123HOST"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
+        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Expires · ${hasExpiryDate ? esc(expiry.date) : "—"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
 
       function siteCard(site) {
@@ -518,56 +532,47 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        const findExactExpires = (source) => {
+        const validDateValue = (value) =>
+          value !== null &&
+          value !== undefined &&
+          String(value).trim() !== "" &&
+          !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
+
+        const findExpiryField = (source) => {
           const visited = new Set();
+          const matches = [];
           const walk = (value, depth = 0) => {
-            if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return "";
+            if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return;
             visited.add(value);
             if (Array.isArray(value)) {
-              for (const item of value) {
-                const found = walk(item, depth + 1);
-                if (found) return found;
-              }
-              return "";
+              value.forEach((item) => walk(item, depth + 1));
+              return;
             }
-
-            const entry = Object.entries(value).find(([key, item]) =>
-              key.toLowerCase() === "expires" &&
-              item !== null && item !== undefined &&
-              String(item).trim() !== "" &&
-              !/^0000-00-00(?:\\s|$)/.test(String(item).trim())
-            );
-            if (entry) return entry[1];
-
-            for (const item of Object.values(value)) {
-              if (item && typeof item === "object") {
-                const found = walk(item, depth + 1);
-                if (found) return found;
+            for (const [key, item] of Object.entries(value)) {
+              const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+              if (validDateValue(item) && [
+                "expires", "expire", "expiredate", "expiry", "expirydate",
+                "expiration", "expirationdate"
+              ].includes(normalizedKey) && (typeof item === "string" || typeof item === "number")) {
+                matches.push({ key: normalizedKey, value: item });
               }
+              if (item && typeof item === "object") walk(item, depth + 1);
             }
-            return "";
           };
-          return walk(source);
+          walk(source);
+          const preferred = matches.find((entry) => entry.key === "expires");
+          return preferred?.value ?? matches[0]?.value ?? "";
         };
 
-        // Nguồn chuẩn: trường Expires từ API chi tiết dịch vụ 123HOST.
-        // Không để ngày đến hạn hóa đơn cũ/mới ghi đè Expires chính thức.
+        // Ưu tiên dữ liệu chi tiết GET /service/{id} từ 123HOST.
         if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
-          const detailExpires = findExactExpires(service._123hostServiceDetail);
-          if (detailExpires) return detailExpires;
+          const detailExpiry = findExpiryField(service._123hostServiceDetail);
+          if (detailExpiry !== "") return detailExpiry;
         }
 
-        // Chỉ dùng Expires trong danh sách dịch vụ nếu API chi tiết không có.
-        const serviceExpires = findExactExpires(service);
-        if (serviceExpires) return serviceExpires;
-
-        // Ngày đến hạn hóa đơn chỉ là phương án dự phòng khi 123HOST
-        // không trả về trường Expires ở cả danh sách lẫn chi tiết dịch vụ.
-        if (service.invoiceRenewalDate && String(service.invoiceRenewalDate).trim()) {
-          return service.invoiceRenewalDate;
-        }
-
-        return "";
+        // Chỉ dự phòng bằng trường ngày hết hạn trong danh sách dịch vụ.
+        // Không lấy ngày đến hạn hóa đơn (duedate/next_due).
+        return findExpiryField(service);
       }
 
       function normalizeInvoiceDetail(data) {
