@@ -351,8 +351,10 @@
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
         const expiryLabel = hasExpiryDate
-          ? `${esc(expiry.date)}${detailsPending ? " · đang đối chiếu" : ""}`
-          : detailsPending ? "Đang xác minh từ 123HOST..." : "Chưa có ngày từ 123HOST";
+          ? `${esc(expiry.date)} <span style="color:${detailsPending ? "#ffad32" : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8"};font-weight:800">${detailsPending ? "· ĐANG ĐỐI CHIẾU" : service._123hostExpiryVerified ? "· DỮ LIỆU TRÙNG KHỚP" : "· ĐÃ TẢI DỮ LIỆU"}</span>`
+          : detailsPending
+            ? '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>'
+            : "Chưa xác minh được ngày từ 123HOST";
         const active = !warning && status.trim().toLowerCase() === "active";
         return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${expiryLabel}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
@@ -910,9 +912,11 @@
               );
               if (currentIndex < 0) continue;
 
+              const detailExpiry = findExpiryField(detailData);
               apiState.services[currentIndex] = {
                 ...apiState.services[currentIndex],
-                _123hostServiceDetail: detailData
+                _123hostServiceDetail: detailData,
+                _123hostExpiryVerified: detailExpiry !== ""
               };
 
               // Cập nhật ngay từng dịch vụ để người dùng thấy kết quả, không phải chờ hết toàn bộ danh sách.
