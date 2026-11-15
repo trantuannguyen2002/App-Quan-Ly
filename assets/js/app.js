@@ -576,50 +576,73 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Các tên trường tương đương của đúng cột Expires trong API 123HOST.
-        // Cố ý không nhận Next Due, Renewal Date hoặc ngày hóa đơn.
+        // Ưu tiên trường Expires thực tế; không dùng Next Due/renewal date.
         const expiresKeys = new Set([
-          // Tên trường ngày hết hạn thường gặp trong API/response 123HOST.
-          // Không đưa nextduedate/nextdue vào đây vì đó là ngày đến hạn hóa đơn,
-          // không nhất thiết trùng cột Expires của dịch vụ.
-          "expires", "expireson", "expiresat",
-          "expirydate", "expiry", "expiryat",
-          "expiredate", "expire", "expireon", "expireat",
-          "expirationdate", "expiration",
-          "dateexpire", "enddate"
+          "expires", "expireson", "expiresat", "expiry", "expirydate", "expiryat",
+          "expire", "expiredate", "expireon", "expireat",
+          "expiration", "expirationdate", "dateexpire", "enddate"
         ]);
-        const findExpires = (source, depth = 0, visited = new Set()) => {
-          if (!source || typeof source !== "object" || depth > 12 || visited.has(source)) return "";
+        const cleanDate = (value) => {
+          if (value === null || value === undefined || typeof value === "object") return "";
+          const text = String(value).trim();
+          return text && !/^0000-00-00(?:\\s|$)/.test(text) ? text : "";
+        };
+        const walk = (source, depth = 0, visited = new Set()) => {
+          if (!source || typeof source !== "object" || depth > 14 || visited.has(source)) return "";
           visited.add(source);
 
           if (Array.isArray(source)) {
             for (const item of source) {
-              const found = findExpires(item, depth + 1, visited);
+              const found = walk(item, depth + 1, visited);
               if (found) return found;
             }
             return "";
           }
 
-          // Ưu tiên tìm trường ngày hết hạn trong object hiện tại trước.
-          for (const [key, value] of Object.entries(source)) {
-            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-            if (!expiresKeys.has(normalizedKey) || value === null || value === undefined) continue;
-            if (typeof value !== "string" && typeof value !== "number") continue;
-            const normalizedValue = String(value).trim();
-            if (normalizedValue && !/^0000-00-00(?:\\s|$)/.test(normalizedValue)) return normalizedValue;
+          const entries = Object.entries(source);
+          // Dạng API custom fields: [{ name: "Expires", value: "YYYY-MM-DD" }]
+          // hoặc { fieldname: "Expires", fieldvalue: "..." }.
+          const labelKeys = new Set(["name", "label", "key", "field", "fieldname", "title"]);
+          const valueKeys = ["value", "date", "fieldvalue", "field_value", "content", "rawvalue"];
+          const label = entries.find(([key, value]) =>
+            labelKeys.has(key.toLowerCase().replace(/[^a-z0-9]/g, "")) &&
+            typeof value === "string" &&
+            value.trim().toLowerCase().replace(/[^a-z0-9]/g, "") === "expires"
+          );
+          if (label) {
+            for (const wanted of valueKeys) {
+              const match = entries.find(([key]) => key.toLowerCase().replace(/[^a-z0-9]/g, "") === wanted.replace(/[^a-z0-9]/g, ""));
+              const value = cleanDate(match?.[1]);
+              if (value) return value;
+            }
           }
 
-          // Sau đó mới tìm trong các object lồng nhau của response.
+          // Trường trực tiếp như expires / expiry_date.
+          for (const [key, value] of entries) {
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (!expiresKeys.has(normalizedKey)) continue;
+            const direct = cleanDate(value);
+            if (direct) return direct;
+            // Một số response bọc ngày trong object, ví dụ expires: { date: "..." }.
+            if (value && typeof value === "object") {
+              for (const nestedKey of ["date", "value", "expires", "expiry", "timestamp"]) {
+                const nested = cleanDate(value[nestedKey]);
+                if (nested) return nested;
+              }
+            }
+          }
+
+          // Tiếp tục duyệt các nhánh lồng nhau, kể cả customfields/details/service.
           for (const value of Object.values(source)) {
             if (value && typeof value === "object") {
-              const found = findExpires(value, depth + 1, visited);
+              const found = walk(value, depth + 1, visited);
               if (found) return found;
             }
           }
           return "";
         };
 
-        return findExpires(service) || findExpires(service._123hostServiceDetail);
+        return walk(service) || walk(service._123hostServiceDetail);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
