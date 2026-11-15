@@ -653,7 +653,72 @@
           return "";
         };
 
-        return walk(service);
+        // Ưu tiên Expires thực tế. Nếu API không trả Expires, dùng ngày gia hạn
+        // (Next Due / Renewal Date) làm phương án thay thế để vẫn hiển thị mốc gia hạn.
+        const actualExpiry = walk(service);
+        if (actualExpiry) return actualExpiry;
+
+        const renewalKeys = new Set([
+          "nextduedate", "nextdue", "nextrenewaldate", "renewaldate",
+          "renewdate", "renewal", "renewaldateutc", "nextrenewal"
+        ]);
+        const renewalLabels = /^(nextdue(date)?|renewal(date)?|renew(date)?|nextrenewal(date)?)$/i;
+        const renewalVisited = new Set();
+        const findRenewalDate = (source, depth = 0) => {
+          if (!source || typeof source !== "object" || depth > 18 || renewalVisited.has(source)) return "";
+          renewalVisited.add(source);
+
+          if (Array.isArray(source)) {
+            for (const item of source) {
+              const found = findRenewalDate(item, depth + 1);
+              if (found) return found;
+            }
+            return "";
+          }
+
+          const entries = Object.entries(source);
+          const labelEntry = entries.find(([key, value]) =>
+            labelKey.has(normalize(key)) &&
+            typeof value === "string" &&
+            renewalLabels.test(normalize(value))
+          );
+          if (labelEntry) {
+            for (const [key, value] of entries) {
+              if (valueKeys.has(normalize(key))) {
+                const date = cleanDate(value);
+                if (date) return date;
+              }
+            }
+          }
+
+          for (const [key, value] of entries) {
+            const normalizedKey = normalize(key);
+            if (/invoice|payment|billing|transaction|amount|total/.test(normalizedKey)) continue;
+            if (renewalKeys.has(normalizedKey)) {
+              const direct = cleanDate(value);
+              if (direct) return direct;
+              if (value && typeof value === "object") {
+                for (const [nestedKey, nestedValue] of Object.entries(value)) {
+                  if (valueKeys.has(normalize(nestedKey)) || ["date", "timestamp", "datetime"].includes(normalize(nestedKey))) {
+                    const nested = cleanDate(nestedValue);
+                    if (nested) return nested;
+                  }
+                }
+              }
+            }
+          }
+
+          for (const [key, value] of entries) {
+            if (value && typeof value === "object" &&
+                !/invoice|payment|billing|transaction|amount|total/.test(normalize(key))) {
+              const found = findRenewalDate(value, depth + 1);
+              if (found) return found;
+            }
+          }
+          return "";
+        };
+
+        return findRenewalDate(service);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
