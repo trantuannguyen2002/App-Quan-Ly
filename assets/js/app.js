@@ -615,7 +615,12 @@
           try {
             const data = await apiRequest(`/api/123host/invoices/${encodeURIComponent(invoice.id)}`);
             const detail = normalizeInvoiceDetail(data);
-            return detail ? { ...invoice, ...detail } : invoice;
+            if (!detail) return invoice;
+            const merged = { ...invoice };
+            for (const [key, value] of Object.entries(detail)) {
+              if (value !== null && value !== undefined && String(value).trim() !== "") merged[key] = value;
+            }
+            return merged;
           } catch (error) {
             console.warn(`Không tải được chi tiết hóa đơn #${invoice.id}:`, error);
             return invoice;
