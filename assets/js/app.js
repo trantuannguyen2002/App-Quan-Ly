@@ -363,7 +363,9 @@
           : service._123hostExpiryMismatch ? "#ff6b6b"
           : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8";
         const expiryLabel = detailsPending
-          ? '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>'
+          ? (hasExpiryDate
+              ? `${esc(expiry.date)} <span style="color:#ffad32;font-weight:800">· ĐANG ĐỐI CHIẾU</span>`
+              : '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>')
           : hasExpiryDate
             ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
             : "Chưa xác minh được ngày từ 123HOST";
