@@ -1629,36 +1629,61 @@
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
         setAppSyncScreen(true);
-        try {
-          // Chỉ xác nhận hoàn tất sau khi cả dữ liệu tài khoản và Hosting đã tải xong.
-          const dataFailures = await loadApiData();
-          apiState.servicesLoaded = false;
-          apiState.invoicesLoaded = false;
-          apiState.balanceLoaded = false;
-          const hostingFailures = await loadApiHosting();
-          const failures = [...dataFailures, ...(hostingFailures || [])];
 
-          const requiredDataLoaded =
-            apiState.domainsLastSyncedAt instanceof Date &&
-            apiState.servicesLoaded &&
-            apiState.invoicesLoaded &&
-            apiState.balanceLoaded;
+        let feedbackTimer = null;
+        const syncTask = (async () => {
+          try {
+            // Chỉ xác nhận hoàn tất khi cả dữ liệu tài khoản và Hosting đã tải xong.
+            const dataFailures = await loadApiData();
+            apiState.servicesLoaded = false;
+            apiState.invoicesLoaded = false;
+            apiState.balanceLoaded = false;
+            const hostingFailures = await loadApiHosting();
+            const failures = [...dataFailures, ...(hostingFailures || [])];
 
-          if (failures.length || !requiredDataLoaded) {
-            const reason = failures.length
-              ? failures.join("; ")
-              : "123HOST chưa trả đủ danh sách dịch vụ, hóa đơn hoặc số dư.";
-            notify(`Đồng bộ chưa hoàn tất: ${reason}`);
-            return { success: false, failures, reason };
+            const requiredDataLoaded =
+              apiState.domainsLastSyncedAt instanceof Date &&
+              apiState.servicesLoaded &&
+              apiState.invoicesLoaded &&
+              apiState.balanceLoaded;
+
+            if (failures.length || !requiredDataLoaded) {
+              const reason = failures.length
+                ? failures.join("; ")
+                : "123HOST chưa trả đủ danh sách dịch vụ, hóa đơn hoặc số dư.";
+              notify(`Đồng bộ chưa hoàn tất: ${reason}`);
+              return { success: false, failures, reason };
+            }
+
+            notify(`Đã đồng bộ dữ liệu mới nhất từ 123HOST: ${apiState.domains.length} tên miền, ${apiState.services.length} dịch vụ, ${apiState.invoices.length} hóa đơn và số dư tài khoản.`);
+            return { success: true, failures: [] };
+          } catch (error) {
+            console.error("Đồng bộ tổng thể 123HOST thất bại:", error);
+            notify(`Đồng bộ thất bại: ${error.message}`);
+            return { success: false, failures: [error.message], reason: error.message };
           }
+        })();
 
-          notify(`Đã đồng bộ dữ liệu mới nhất từ 123HOST: ${apiState.domains.length} tên miền, ${apiState.services.length} dịch vụ, ${apiState.invoices.length} hóa đơn và số dư tài khoản.`);
-          return { success: true, failures: [] };
-        } catch (error) {
-          console.error("Đồng bộ tổng thể 123HOST thất bại:", error);
-          notify(`Đồng bộ thất bại: ${error.message}`);
-          return { success: false, failures: [error.message], reason: error.message };
+        try {
+          // Sau 10 giây mở giao diện và báo tiến độ hiện có; tác vụ đồng bộ
+          // vẫn tiếp tục chạy nền, cập nhật dữ liệu và báo kết quả cuối cùng.
+          const quickFeedback = new Promise((resolve) => {
+            feedbackTimer = window.setTimeout(() => {
+              const hasInitialData =
+                apiState.domainsLastSyncedAt instanceof Date ||
+                apiState.servicesLoaded;
+
+              notify(hasInitialData
+                ? `Đã nhận dữ liệu ban đầu từ 123HOST (${apiState.domains.length} tên miền, ${apiState.services.length} dịch vụ). Đang tiếp tục cập nhật chi tiết...`
+                : "123HOST phản hồi chậm hơn 10 giây. Ứng dụng sẽ tiếp tục đồng bộ ở chế độ nền và thông báo khi có kết quả.");
+
+              resolve({ pending: true });
+            }, 10000);
+          });
+
+          return await Promise.race([syncTask, quickFeedback]);
         } finally {
+          if (feedbackTimer !== null) window.clearTimeout(feedbackTimer);
           setAppSyncScreen(false);
         }
       }
