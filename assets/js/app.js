@@ -576,18 +576,18 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Chỉ dùng ngày hết hạn từ API CHI TIẾT của chính dịch vụ.
-        // Không lấy ngày ở danh sách tổng hoặc hóa đơn vì có thể là ngày cũ/
-        // ngày thanh toán khác với cột Expires trên 123HOST.
+        // Ưu tiên ngày Expires từ API chi tiết của chính dịch vụ.
+        // Nếu API chi tiết không trả trường ngày, dùng ngày Expires trong
+        // bản ghi danh sách dịch vụ /service (không dùng ngày hóa đơn).
         if (service._123hostDetailChecked === true) {
-          if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
-            return findExpiryField(service._123hostServiceDetail);
-          }
-          return "";
+          const detailExpiry = service._123hostServiceDetail &&
+            typeof service._123hostServiceDetail === "object"
+              ? findExpiryField(service._123hostServiceDetail)
+              : "";
+          if (detailExpiry !== "") return detailExpiry;
         }
 
-        // Chưa có chi tiết thì không hiển thị ngày tạm từ danh sách tổng.
-        return "";
+        return findExpiryField(service);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
