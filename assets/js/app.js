@@ -337,7 +337,9 @@
           status,
           expires: getServiceExpiryValue(service)
         });
-        const detailsPending = apiState.servicesLoaded && !apiState.hostingDetailsLoaded;
+        // Trạng thái đối chiếu theo TỪNG dịch vụ, không khóa toàn bộ danh sách
+        // trong lúc các dịch vụ khác hoặc hóa đơn vẫn đang tải.
+        const detailsPending = apiState.servicesLoaded && service._123hostDetailChecked !== true;
         const warning = !detailsPending && expiry.category !== "active";
         const statusText = detailsPending
           ? status
@@ -852,7 +854,14 @@
             const data = await apiRequest("/api/123host/services");
             const list = extractApiList(data, "services");
             if (!list) throw new Error("123HOST trả về danh sách dịch vụ sai định dạng.");
-            apiState.services = list;
+            apiState.services = list.map((service) => ({
+              ...service,
+              _123hostDetailChecked: false,
+              _123hostServiceDetail: null,
+              _123hostDetailExpiryAvailable: false,
+              _123hostExpiryVerified: false,
+              _123hostExpiryMismatch: false
+            }));
             apiState.servicesLoaded = true;
             servicesForDetails = list.slice();
             render();
@@ -897,6 +906,14 @@
             for (const service of servicesForDetails) {
               if (Date.now() >= detailDeadline) {
                 failures.push("Đã tạm dừng tải chi tiết các dịch vụ còn lại sau 90 giây; danh sách dịch vụ đã được hiển thị.");
+                const pendingIds = new Set(servicesForDetails.slice(servicesForDetails.indexOf(service)).map((item) =>
+                  String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "")
+                ));
+                apiState.services = apiState.services.map((item) => {
+                  const id = String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "");
+                  return pendingIds.has(id) ? { ...item, _123hostDetailChecked: true } : item;
+                });
+                if (currentScreen === "hosting") render();
                 break;
               }
               const serviceId = String(
@@ -904,6 +921,11 @@
               ).trim();
               if (!/^\d+$/.test(serviceId)) {
                 failures.push(`services detail: thiếu ID hợp lệ cho ${service?.name || service?.domain || "dịch vụ"}`);
+                const invalidIndex = apiState.services.indexOf(service);
+                if (invalidIndex >= 0) {
+                  apiState.services[invalidIndex] = { ...apiState.services[invalidIndex], _123hostDetailChecked: true };
+                  if (currentScreen === "hosting") render();
+                }
                 continue;
               }
 
@@ -928,6 +950,13 @@
               if (lastError) {
                 failures.push(`service #${serviceId}: ${lastError.message}`);
                 console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, lastError);
+                const failedIndex = apiState.services.findIndex((item) =>
+                  String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "") === serviceId
+                );
+                if (failedIndex >= 0) {
+                  apiState.services[failedIndex] = { ...apiState.services[failedIndex], _123hostDetailChecked: true };
+                  if (currentScreen === "hosting") render();
+                }
                 continue;
               }
 
@@ -951,6 +980,7 @@
               apiState.services[currentIndex] = {
                 ...apiState.services[currentIndex],
                 _123hostServiceDetail: detailData,
+                _123hostDetailChecked: true,
                 _123hostDetailExpiryAvailable: detailExpiry !== "",
                 _123hostExpiryVerified: hasBothExpiryDates && detailExpiryDate === listExpiryDate,
                 _123hostExpiryMismatch: hasBothExpiryDates && detailExpiryDate !== listExpiryDate
