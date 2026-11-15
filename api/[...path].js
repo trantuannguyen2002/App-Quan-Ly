@@ -264,13 +264,17 @@ async function handleProviderRoute(req, res, key, session, path) {
     if (!data.service || typeof data.service !== "object") {
       throw new ApiError(502, "123HOST tráº£ vá» chi tiáº¿t dá»‹ch vá»¥ khÃ´ng há»£p lá»‡.");
     }
-    const service = data.service;
+    const safeFields = new Set([
+      "id", "domain", "hostname", "name", "status", "expires", "expire", "expiration",
+      "expiration_date", "expires_at", "expiry", "expiry_date", "next_due", "nextdue",
+      "next_invoice", "due_date", "duedate", "date_created", "billingcycle"
+    ]);
     setSessionCookie(res, session, key);
     return {
       service: Object.fromEntries(
-        ["id", "domain", "name", "status", "expires", "next_due", "next_invoice", "date_created", "billingcycle"]
-          .filter((field) => service[field] !== undefined)
-          .map((field) => [field, service[field]])
+        Object.entries(data.service)
+          .filter(([field]) => safeFields.has(field.toLowerCase()))
+          .map(([field, value]) => [field.toLowerCase(), value])
       )
     };
   }
