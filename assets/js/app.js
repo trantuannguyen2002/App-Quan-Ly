@@ -316,7 +316,7 @@
         const status = String(service.status || "Chưa rõ");
         const expiry = getDomainExpiry({
           status,
-          expires: service.expires
+          expires: getServiceExpiryValue(service)
         });
         const warning = expiry.category !== "active";
         const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
@@ -500,6 +500,24 @@
         return null;
       }
 
+      function getServiceExpiryValue(service) {
+        if (!service || typeof service !== "object") return "";
+        const expiryKeys = [
+          "expires", "expire", "expiration", "expiration_date", "expirationdate",
+          "expires_at", "expiry", "expiry_date", "expirydate", "expiredate",
+          "next_due", "nextdue", "next_due_date", "nextduedate",
+          "due_date", "duedate"
+        ];
+        const entries = Object.entries(service);
+        for (const key of expiryKeys) {
+          const match = entries.find(([field, value]) =>
+            field.toLowerCase() === key && value !== null && value !== undefined && String(value).trim() !== ""
+          );
+          if (match) return match[1];
+        }
+        return "";
+      }
+
       async function loadApiNotifications() {
         if (notificationsLoadPromise) return notificationsLoadPromise;
         const request = (async () => {
@@ -596,7 +614,24 @@
               if (key === "services") {
                 const list = extractApiList(data, "services");
                 if (!list) throw new Error("123HOST trả về danh sách dịch vụ sai định dạng.");
-                apiState.services = list;
+
+                // Danh sách /service có thể không chứa trường Expires đầy đủ.
+                // Lấy chi tiết từng dịch vụ để đọc đúng ngày hết hạn từ API 123HOST.
+                const detailedServices = await Promise.all(list.map(async (service) => {
+                  const serviceId = String(service?.id ?? "").trim();
+                  if (!/^\\d+$/.test(serviceId)) return service;
+                  try {
+                    const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
+                    const detail = detailData?.service || detailData?.data?.service || detailData?.data;
+                    if (!detail || typeof detail !== "object" || Array.isArray(detail)) return service;
+                    return { ...service, ...detail };
+                  } catch (error) {
+                    console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
+                    return service;
+                  }
+                }));
+
+                apiState.services = detailedServices;
                 apiState.servicesLoaded = true;
               } else if (key === "invoices") {
                 const list = extractApiList(data, "invoices");
