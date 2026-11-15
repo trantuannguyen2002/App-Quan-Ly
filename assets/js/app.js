@@ -624,20 +624,9 @@
                     const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
                     const detail = detailData?.service || detailData?.data?.service || detailData?.data;
                     if (!detail || typeof detail !== "object" || Array.isArray(detail)) return service;
-                    // Giữ nguyên trường Expires từ danh sách /service nếu API danh sách đã trả về.
-                    // API chi tiết có thể chứa next_due hoặc ngày kỳ thanh toán khác.
-                    const merged = { ...detail, ...service };
-                    for (const field of ["expires", "expire", "expiration", "expiration_date", "expires_at", "expiry", "expiry_date"]) {
-                      const listValue = Object.entries(service).find(([key, value]) =>
-                        key.toLowerCase() === field && value !== null && value !== undefined && String(value).trim() !== ""
-                      )?.[1];
-                      if (listValue !== undefined) {
-                        const detailKey = Object.keys(merged).find((key) => key.toLowerCase() === field);
-                        if (detailKey) merged[detailKey] = listValue;
-                        else merged[field] = listValue;
-                      }
-                    }
-                    return merged;
+                    // Thông tin chi tiết dịch vụ là nguồn ưu tiên cho trường Expires.
+                    // Dữ liệu danh sách chỉ dùng làm fallback; không để ngày kỳ thanh toán ghi đè ngày hết hạn.
+                    return { ...service, ...detail };
                   } catch (error) {
                     console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
                     return service;
