@@ -39,6 +39,7 @@
         services: [],
         servicesLoaded: false,
         hostingSyncComplete: false,
+        hostingDetailsLoaded: false,
         invoices: [],
         invoicesLoaded: false,
         balanceLoaded: false,
@@ -336,16 +337,19 @@
           status,
           expires: getServiceExpiryValue(service)
         });
-        const warning = expiry.category !== "active";
-        const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
-        const hasExpiryDate = expiry.date !== "Chưa có thông tin";
-        const expiryText = expiry.days === null
+        const detailsPending = apiState.servicesLoaded && !apiState.hostingDetailsLoaded;
+        const warning = !detailsPending && expiry.category !== "active";
+        const statusText = detailsPending
+          ? status
+          : expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
+        const hasExpiryDate = !detailsPending && expiry.date !== "Chưa có thông tin";
+        const expiryText = detailsPending || expiry.days === null
           ? ""
           : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày`
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
         const active = !warning && status.trim().toLowerCase() === "active";
-        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${hasExpiryDate ? esc(expiry.date) : "Chưa có ngày từ 123HOST"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
+        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${detailsPending ? "Đang xác minh từ 123HOST..." : hasExpiryDate ? esc(expiry.date) : "Chưa có ngày từ 123HOST"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
 
       function siteCard(site) {
@@ -803,6 +807,7 @@
         if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.balanceLoaded) return;
 
         apiState.hostingSyncComplete = false;
+        apiState.hostingDetailsLoaded = false;
         apiState.hostingSyncError = "";
         if (currentScreen === "hosting") render();
 
@@ -956,6 +961,7 @@
         } finally {
           hostingLoadPromise = null;
           apiState.hostingSyncComplete = true;
+          apiState.hostingDetailsLoaded = true;
           if (currentScreen === "hosting") render();
         }
       }
