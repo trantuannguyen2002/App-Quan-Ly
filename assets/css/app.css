@@ -390,17 +390,34 @@
     }
 
 
-/* UVA API startup synchronization screen */
+/* UVA API sync indicator: keep application results visible while syncing */
 .app-splash {
   z-index: 99999;
-  padding: 24px;
+  inset: auto 18px 18px auto;
+  width: auto;
+  max-width: calc(100vw - 36px);
+  min-height: 58px;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 11px;
+  padding: 10px 16px;
+  border: 1px solid rgba(69,221,245,.24);
+  border-radius: 14px;
+  background: rgba(12,22,39,.96);
+  box-shadow: 0 12px 36px rgba(0,0,0,.38);
+}
+.app-splash .splash-logo {
+  width: 58px;
+  max-height: 30px;
+  object-fit: contain;
+  animation: none;
 }
 .app-splash::before {
   content: "";
-  width: 30px;
-  height: 30px;
-  margin-top: 22px;
-  border: 3px solid rgba(69,221,245,.18);
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  border: 2px solid rgba(69,221,245,.18);
   border-top-color: var(--cyan-light);
   border-radius: 50%;
   animation: app-sync-spin .8s linear infinite;
@@ -408,9 +425,20 @@
 .app-splash::after {
   content: "Đang đồng bộ dữ liệu từ 123HOST...";
   color: #c5d3e7;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 560;
   letter-spacing: .01em;
-  text-align: center;
+  text-align: left;
 }
 @keyframes app-sync-spin { to { transform: rotate(360deg); } }
+@media (max-width: 520px) {
+  .app-splash {
+    inset: auto 12px 82px;
+    max-width: none;
+    min-height: 54px;
+    justify-content: center;
+    padding: 9px 12px;
+  }
+  .app-splash .splash-logo { width: 48px; }
+  .app-splash::after { font-size: 11px; }
+}
