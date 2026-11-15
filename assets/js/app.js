@@ -316,7 +316,7 @@
         const status = String(service.status || "Chưa rõ");
         const expiry = getDomainExpiry({
           status,
-          expires: service.next_due
+          expires: service.expires
         });
         const warning = expiry.category !== "active";
         const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
