@@ -503,14 +503,44 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Cột Expires phải lấy đúng trường "expires" từ API dịch vụ 123HOST.
-        // Không dùng next_due / nextduedate / duedate vì đây là các mốc khác
-        // (ngày đến hạn kỳ tiếp theo hoặc hạn thanh toán), có thể lệch năm.
-        const value = service.expires ?? service.Expires;
-        if (value === null || value === undefined) return "";
-        const normalized = String(value).trim();
-        if (!normalized || /^0000-00-00(?:\\s|$)/.test(normalized)) return "";
-        return value;
+        const findExactExpires = (source) => {
+          const visited = new Set();
+          const walk = (value, depth = 0) => {
+            if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return "";
+            visited.add(value);
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                const found = walk(item, depth + 1);
+                if (found) return found;
+              }
+              return "";
+            }
+
+            const entry = Object.entries(value).find(([key, item]) =>
+              key.toLowerCase() === "expires" &&
+              item !== null && item !== undefined &&
+              String(item).trim() !== "" &&
+              !/^0000-00-00(?:\\s|$)/.test(String(item).trim())
+            );
+            if (entry) return entry[1];
+
+            for (const item of Object.values(value)) {
+              if (item && typeof item === "object") {
+                const found = walk(item, depth + 1);
+                if (found) return found;
+              }
+            }
+            return "";
+          };
+          return walk(source);
+        };
+
+        // Chi tiết dịch vụ gọi riêng luôn là nguồn ưu tiên hơn danh sách tổng.
+        if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
+          return findExactExpires(service._123hostServiceDetail);
+        }
+
+        return findExactExpires(service);
       }
 
       function normalizeInvoiceDetail(data) {
@@ -740,11 +770,10 @@
                   if (!/^\\d+$/.test(serviceId)) return service;
                   try {
                     const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
-                    const detail = detailData?.service || detailData?.data?.service || detailData?.data;
+                    const detail = detailData?.service || detailData?.details || detailData?.data?.service || detailData?.data?.details || detailData?.data || detailData;
                     if (!detail || typeof detail !== "object" || Array.isArray(detail)) return service;
-                    // Thông tin chi tiết dịch vụ là nguồn ưu tiên cho trường Expires.
-                    // Dữ liệu danh sách chỉ dùng làm fallback; không để ngày kỳ thanh toán ghi đè ngày hết hạn.
-                    return { ...service, ...detail };
+                    // Giữ nguyên response chi tiết gốc để đọc đúng Expires ở mọi cấp lồng nhau.
+                    return { ...service, _123hostServiceDetail: detail };
                   } catch (error) {
                     console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
                     return service;
