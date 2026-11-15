@@ -758,24 +758,30 @@
         apiState.loading = true;
         render();
         const failures = [];
-        const [domainResult, detailsResult, notificationResult] = await Promise.allSettled([
-          loadApiDomains(),
-          apiRequest("/api/123host/details"),
-          loadApiNotifications()
-        ]);
-        if (domainResult.status === "rejected") {
-          failures.push(`domains: ${domainResult.reason.message}`);
-          apiState.domainError = domainResult.reason.message;
+
+        // Gọi tuần tự các API dùng chung phiên 123HOST. Nếu access token hết hạn,
+        // request đầu tiên có thể xoay refresh token và cập nhật cookie; chạy song song
+        // dễ khiến các request còn lại dùng refresh token cũ, gây đồng bộ thiếu dữ liệu.
+        try {
+          await loadApiDomains();
+        } catch (error) {
+          failures.push(`domains: ${error.message}`);
+          apiState.domainError = error.message;
         }
-        if (detailsResult.status === "fulfilled") {
-          apiState.client = detailsResult.value.client || apiState.client;
-        } else {
-          failures.push(`details: ${detailsResult.reason.message}`);
+
+        try {
+          const details = await apiRequest("/api/123host/details");
+          apiState.client = details.client || apiState.client;
+        } catch (error) {
+          failures.push(`details: ${error.message}`);
         }
-        if (notificationResult.status === "rejected") {
-          apiState.notificationsError = `Không tải được thông báo 123HOST: ${notificationResult.reason.message}`;
+
+        try {
+          await loadApiNotifications();
+        } catch (error) {
+          apiState.notificationsError = `Không tải được thông báo 123HOST: ${error.message}`;
           apiState.notificationsLoaded = true;
-          console.warn("Không tải được thông báo 123HOST (không ảnh hưởng đồng bộ Hosting):", notificationResult.reason);
+          console.warn("Không tải được thông báo 123HOST (không ảnh hưởng đồng bộ Hosting):", error);
         }
         apiState.loading = false;
         render();
