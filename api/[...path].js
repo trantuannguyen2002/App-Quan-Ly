@@ -262,32 +262,65 @@ async function handleProviderRoute(req, res, key, session, path) {
     if (method !== "GET") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
     const data = await providerRequest(session, `/service/@${match[1]}`);
 
-    // Chuẩn hóa response chi tiết từ 123HOST: có API trả "service",
-    // có API trả "details" hoặc bọc dữ liệu trong "data".
-    const serviceDetail =
-      data?.service ||
-      data?.details ||
-      data?.data?.service ||
-      data?.data?.details ||
-      data?.data;
+    // Tìm đúng field "expires" trong response dịch vụ, kể cả khi 123HOST
+    // bọc object qua data/service/details hoặc các lớp JSON lồng nhau.
+    const visited = new Set();
+    let expiresValue;
+    let serviceObject = null;
+    const findServiceExpiry = (value, depth = 0) => {
+      if (!value || typeof value !== "object" || depth > 10 || visited.has(value)) return;
+      visited.add(value);
+      if (Array.isArray(value)) {
+        for (const entry of value) findServiceExpiry(entry, depth + 1);
+        return;
+      }
+      const entries = Object.entries(value);
+      const expiresEntry = entries.find(([field, entry]) =>
+        field.toLowerCase() === "expires" &&
+        entry !== null && entry !== undefined &&
+        String(entry).trim() !== ""
+      );
+      if (expiresEntry && expiresValue === undefined) {
+        expiresValue = expiresEntry[1];
+        serviceObject = value;
+      }
+      for (const [field, entry] of entries) {
+        if (entry && typeof entry === "object" && /service|detail|data|result|response/i.test(field)) {
+          findServiceExpiry(entry, depth + 1);
+        }
+      }
+    };
+    findServiceExpiry(data);
+
+    const wrappers = [
+      data?.service, data?.details, data?.data?.service,
+      data?.data?.details, data?.data, data?.result?.service,
+      data?.result?.details, data?.result
+    ];
+    const serviceDetail = serviceObject || wrappers.find((item) =>
+      item && typeof item === "object" && !Array.isArray(item)
+    );
 
     if (!serviceDetail || typeof serviceDetail !== "object" || Array.isArray(serviceDetail)) {
       throw new ApiError(502, "123HOST trả về chi tiết dịch vụ không hợp lệ.");
     }
+
     const safeFields = new Set([
       "id", "domain", "hostname", "name", "status", "expires", "expire", "expiredate",
       "expiration", "expiration_date", "expirationdate", "expires_at", "expiry",
       "expiry_date", "expirydate", "next_due", "nextdue", "next_due_date", "nextduedate",
       "next_invoice", "due_date", "duedate", "date_due", "date_created", "billingcycle"
     ]);
+    const safeService = Object.fromEntries(
+      Object.entries(serviceDetail)
+        .filter(([field]) => safeFields.has(field.toLowerCase()))
+        .map(([field, value]) => [field.toLowerCase(), value])
+    );
+    // Luôn chuyển tiếp đúng field Expires tìm được trong response API gốc.
+    if (expiresValue !== undefined) safeService.expires = expiresValue;
+
     setSessionCookie(res, session, key);
-    return {
-      service: Object.fromEntries(
-        Object.entries(serviceDetail)
-          .filter(([field]) => safeFields.has(field.toLowerCase()))
-          .map(([field, value]) => [field.toLowerCase(), value])
-      )
-    };
+    return { service: safeService };
   }
 
   match = path.match(/^\/api\/123host\/notifications\/(\d+)\/ack$/);
