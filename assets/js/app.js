@@ -860,10 +860,15 @@
                 ...apiState.services[currentIndex],
                 _123hostServiceDetail: detailData
               };
-              if (currentScreen === "hosting") render();
+            }
 
-              // Nhịp nghỉ nhỏ để hạn chế 123HOST throttling các ID tiếp theo.
-              await new Promise((resolve) => setTimeout(resolve, 250));
+            // Chỉ render một lần sau khi tải xong toàn bộ chi tiết để giảm thao tác DOM.
+            if (currentScreen === "hosting") render();
+
+            // Giữ nhịp gọi tuần tự ngắn để hạn chế 123HOST throttling.
+            if (servicesForDetails.length > 1) {
+              await new Promise((resolve) => setTimeout(resolve, 75));
+            }
             }
           })();
 
@@ -893,9 +898,6 @@
               failures.push(`${key}: ${error.message}`);
             }
           }
-
-          // Chờ toàn bộ API chi tiết dịch vụ hoàn tất để không ghi đè dữ liệu mới bằng mảng cũ.
-          await detailsPromise;
 
           if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.services.length && apiState.invoices.length) {
             try {
