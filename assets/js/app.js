@@ -678,22 +678,26 @@
         const invoiceList = Array.isArray(invoices) ? invoices : [];
         const candidates = invoiceList.filter((invoice) => invoice && invoice.id !== undefined);
 
-        // Luôn lấy chi tiết hóa đơn để đọc các dòng hàng và mã dịch vụ liên kết.
-        const detailedInvoices = await Promise.all(candidates.map(async (invoice) => {
+        // Gọi tuần tự để tránh các request cùng lúc tranh refresh-token 123HOST.
+        const detailedInvoices = [];
+        for (const invoice of candidates) {
           try {
             const data = await apiRequest(`/api/123host/invoices/${encodeURIComponent(invoice.id)}`);
             const detail = normalizeInvoiceDetail(data);
-            if (!detail) return invoice;
+            if (!detail) {
+              detailedInvoices.push(invoice);
+              continue;
+            }
             const merged = { ...invoice };
             for (const [key, value] of Object.entries(detail)) {
               if (value !== null && value !== undefined && String(value).trim() !== "") merged[key] = value;
             }
-            return merged;
+            detailedInvoices.push(merged);
           } catch (error) {
             console.warn(`Không tải được chi tiết hóa đơn #${invoice.id}:`, error);
-            return invoice;
+            detailedInvoices.push(invoice);
           }
-        }));
+        }
 
         return (Array.isArray(services) ? services : []).map((service) => {
           const matched = detailedInvoices
@@ -781,19 +785,14 @@
         try {
           await loadApiNotifications();
         } catch (error) {
+          failures.push(`notifications: ${error.message}`);
           apiState.notificationsError = `Không tải được thông báo 123HOST: ${error.message}`;
           apiState.notificationsLoaded = true;
-          console.warn("Không tải được thông báo 123HOST (không ảnh hưởng đồng bộ Hosting):", error);
+          console.warn("Không tải được thông báo 123HOST:", error);
         }
         apiState.loading = false;
         render();
-        if (failures.length) {
-          console.error("Một số API 123HOST không tải được:", failures);
-          const domainFailure = failures.find((failure) => failure.startsWith("domains: "));
-          notify(domainFailure ? `Tên miền chưa đồng bộ được: ${domainFailure.slice("domains: ".length)}` : `Chưa đồng bộ đầy đủ dữ liệu 123HOST: ${failures.join("; ")}`);
-        } else {
-          notify(`Đã đồng bộ ${apiState.domains.length} tên miền và hồ sơ 123HOST.`);
-        }
+        if (failures.length) console.error("Một số API 123HOST không tải được:", failures);
         return failures;
       }
 
@@ -937,12 +936,12 @@
 
           if (failures.length) {
             console.error("Một số dữ liệu Hosting 123HOST chưa tải được:", failures);
-            notify(`Hosting chưa đồng bộ đầy đủ: ${failures.join("; ")}`);
           }
+          return failures;
         })();
 
         try {
-          await hostingLoadPromise;
+          return await hostingLoadPromise;
         } finally {
           hostingLoadPromise = null;
         }
@@ -1631,12 +1630,34 @@
         if (!apiState.authenticated) return;
         setAppSyncScreen(true);
         try {
-          await loadApiData();
-          // Buộc tải mới Hosting/VPS, chi tiết dịch vụ, hóa đơn và số dư như một lượt đồng bộ thủ công.
+          // Chỉ xác nhận hoàn tất sau khi cả dữ liệu tài khoản và Hosting đã tải xong.
+          const dataFailures = await loadApiData();
           apiState.servicesLoaded = false;
           apiState.invoicesLoaded = false;
           apiState.balanceLoaded = false;
-          await loadApiHosting();
+          const hostingFailures = await loadApiHosting();
+          const failures = [...dataFailures, ...(hostingFailures || [])];
+
+          const requiredDataLoaded =
+            apiState.domainsLastSyncedAt instanceof Date &&
+            apiState.servicesLoaded &&
+            apiState.invoicesLoaded &&
+            apiState.balanceLoaded;
+
+          if (failures.length || !requiredDataLoaded) {
+            const reason = failures.length
+              ? failures.join("; ")
+              : "123HOST chưa trả đủ danh sách dịch vụ, hóa đơn hoặc số dư.";
+            notify(`Đồng bộ chưa hoàn tất: ${reason}`);
+            return { success: false, failures, reason };
+          }
+
+          notify(`Đã đồng bộ dữ liệu mới nhất từ 123HOST: ${apiState.domains.length} tên miền, ${apiState.services.length} dịch vụ, ${apiState.invoices.length} hóa đơn và số dư tài khoản.`);
+          return { success: true, failures: [] };
+        } catch (error) {
+          console.error("Đồng bộ tổng thể 123HOST thất bại:", error);
+          notify(`Đồng bộ thất bại: ${error.message}`);
+          return { success: false, failures: [error.message], reason: error.message };
         } finally {
           setAppSyncScreen(false);
         }
