@@ -265,7 +265,9 @@
         if (expiryUtc !== null) days = Math.round((expiryUtc - todayUtc) / 86400000);
         else if (days !== null && Number.isFinite(days)) expiryUtc = todayUtc + Math.round(days) * 86400000;
         if (/expired|terminated|cancelled/.test(status) || (days !== null && Number.isFinite(days) && days < 0)) {
-          return { category: "expired", days: Number.isFinite(days) ? days : 0, date };
+          // Trạng thái Expired không chứng minh dịch vụ hết hạn đúng hôm nay.
+          // Chỉ hiển thị số ngày khi có ngày Expires hoặc daytoexpire thực tế.
+          return { category: "expired", days: Number.isFinite(days) ? days : null, date };
         }
         const expiryDate = expiryUtc === null ? null : new Date(expiryUtc);
         const monthDifference = expiryDate
