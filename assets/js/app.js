@@ -362,10 +362,10 @@
         const expiryStateColor = detailsPending ? "#ffad32"
           : service._123hostExpiryMismatch ? "#ff6b6b"
           : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8";
-        const expiryLabel = hasExpiryDate
-          ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
-          : detailsPending
-            ? '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>'
+        const expiryLabel = detailsPending
+          ? '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>'
+          : hasExpiryDate
+            ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
             : "Chưa xác minh được ngày từ 123HOST";
         const active = !warning && status.trim().toLowerCase() === "active";
         return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${expiryLabel}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
