@@ -257,6 +257,24 @@ async function handleProviderRoute(req, res, key, session, path) {
     return data;
   }
 
+  match = path.match(/^\/api\/123host\/services\/(\d+)$/);
+  if (match) {
+    if (method !== "GET") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
+    const data = await providerRequest(session, `/service/@${match[1]}`);
+    if (!data.service || typeof data.service !== "object") {
+      throw new ApiError(502, "123HOST tráº£ vá» chi tiáº¿t dá»‹ch vá»¥ khÃ´ng há»£p lá»‡.");
+    }
+    const service = data.service;
+    setSessionCookie(res, session, key);
+    return {
+      service: Object.fromEntries(
+        ["id", "domain", "name", "status", "expires", "next_due", "next_invoice", "date_created", "billingcycle"]
+          .filter((field) => service[field] !== undefined)
+          .map((field) => [field, service[field]])
+      )
+    };
+  }
+
   match = path.match(/^\/api\/123host\/notifications\/(\d+)\/ack$/);
   if (match) {
     if (method !== "PUT") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
