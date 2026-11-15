@@ -38,6 +38,7 @@
         domains: [],
         services: [],
         servicesLoaded: false,
+        hostingSyncComplete: false,
         invoices: [],
         invoicesLoaded: false,
         balanceLoaded: false,
@@ -433,6 +434,10 @@
       }
 
       function renderHosting() {
+        if (apiState.authenticated && !apiState.hostingSyncComplete) {
+          return `${heading("Dịch Vụ Hosting","Đang đồng bộ đầy đủ dữ liệu từ 123HOST. Kết quả sẽ hiển thị sau khi hoàn tất.",`<span class="status-pill orange">Đang đồng bộ</span>`)}
+            <section class="panel"><div class="empty-state">Đang tải danh sách dịch vụ, chi tiết từng Hosting, hóa đơn và thông tin tài khoản từ 123HOST...<br>Vui lòng chờ, dữ liệu sẽ chỉ hiển thị khi quá trình đồng bộ hoàn tất.</div></section>`;
+        }
         if (apiState.authenticated) {
           const sortedServices = [...apiState.services].sort((left, right) =>
             Number(String(right.status || "").trim().toLowerCase() === "active")
@@ -1628,6 +1633,8 @@
 
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
+        apiState.hostingSyncComplete = false;
+        if (currentScreen === "hosting") render();
         setAppSyncScreen(true);
 
         let feedbackTimer = null;
@@ -1661,6 +1668,10 @@
             console.error("Đồng bộ tổng thể 123HOST thất bại:", error);
             notify(`Đồng bộ thất bại: ${error.message}`);
             return { success: false, failures: [error.message], reason: error.message };
+          } finally {
+            // Chỉ mở kết quả Hosting sau khi toàn bộ quy trình đồng bộ kết thúc.
+            apiState.hostingSyncComplete = true;
+            if (currentScreen === "hosting") render();
           }
         })();
 
