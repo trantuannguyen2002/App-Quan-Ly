@@ -321,14 +321,13 @@
         const warning = expiry.category !== "active";
         const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
         const hasExpiryDate = expiry.date !== "Chưa có thông tin";
-        const expiryDateText = hasExpiryDate ? ` · Hết hạn ${esc(expiry.date)}` : "";
         const expiryText = expiry.days === null
-          ? hasExpiryDate ? `Ngày hết hạn theo 123HOST · ${esc(expiry.date)}` : ""
-          : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày${expiryDateText}`
-          : expiry.days === 0 ? warning && !hasExpiryDate ? "Đã hết hạn" : `Hết hạn hôm nay${expiryDateText}`
-          : `Còn ${expiry.days} ngày${expiryDateText}`;
+          ? ""
+          : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày`
+          : expiry.days === 0 ? "Hết hạn hôm nay"
+          : `Còn ${expiry.days} ngày`;
         const active = !warning && status.trim().toLowerCase() === "active";
-        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
+        return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Expires · ${hasExpiryDate ? esc(expiry.date) : "Chưa có dữ liệu từ 123HOST"}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
 
       function siteCard(site) {
