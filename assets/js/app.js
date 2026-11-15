@@ -518,6 +518,11 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
+        // Ngày đến hạn của hóa đơn gia hạn liên kết với dịch vụ là nguồn ưu tiên.
+        if (service.invoiceRenewalDate && String(service.invoiceRenewalDate).trim()) {
+          return service.invoiceRenewalDate;
+        }
+
         const findExactExpires = (source) => {
           const visited = new Set();
           const walk = (value, depth = 0) => {
@@ -835,6 +840,15 @@
               render();
             } catch (error) {
               failures.push(`${key}: ${error.message}`);
+            }
+          }
+
+          if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.services.length && apiState.invoices.length) {
+            try {
+              apiState.services = await attachInvoiceRenewalDates(apiState.services, apiState.invoices);
+              render();
+            } catch (error) {
+              console.warn("Không thể đối chiếu ngày đến hạn hóa đơn với dịch vụ Hosting:", error);
             }
           }
 
