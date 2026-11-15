@@ -502,18 +502,23 @@
 
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
-        // Ngày gia hạn từ hóa đơn Hosting được ưu tiên cao nhất.
-        if (service.invoiceRenewalDate) return service.invoiceRenewalDate;
+
+        // Trường Ngày đến hạn của chi tiết dịch vụ 123HOST là nguồn chuẩn.
+        // Ưu tiên nextduedate/next_due trước expires vì expires có thể là mốc cũ
+        // hoặc mốc chu kỳ khác (ví dụ 19/11/2027 thay vì 19/11/2026).
         const expiryKeys = [
+          "nextduedate", "next_due_date", "next_due", "nextdue",
+          "duedate", "due_date", "date_due",
           "expires", "expire", "expiration", "expiration_date", "expirationdate",
-          "expires_at", "expiry", "expiry_date", "expirydate", "expiredate",
-          "next_due", "nextdue", "next_due_date", "nextduedate",
-          "due_date", "duedate"
+          "expires_at", "expiry", "expiry_date", "expirydate", "expiredate"
         ];
         const entries = Object.entries(service);
         for (const key of expiryKeys) {
           const match = entries.find(([field, value]) =>
-            field.toLowerCase() === key && value !== null && value !== undefined && String(value).trim() !== ""
+            field.toLowerCase() === key &&
+            value !== null && value !== undefined &&
+            String(value).trim() !== "" &&
+            !/^0000-00-00(?:\\s|$)/.test(String(value).trim())
           );
           if (match) return match[1];
         }
@@ -765,7 +770,8 @@
                 if (!list) throw new Error("123HOST trả về danh sách hóa đơn sai định dạng.");
                 apiState.invoices = list;
                 apiState.invoicesLoaded = true;
-                apiState.services = await attachInvoiceRenewalDates(apiState.services, list);
+                // Ngày Expires lấy từ trường Ngày đến hạn của chi tiết dịch vụ.
+                // Không gán ngày đến hạn thanh toán hóa đơn (invoice duedate) vào Expires.
               } else {
                 apiState.balance = data;
                 apiState.balanceLoaded = true;
