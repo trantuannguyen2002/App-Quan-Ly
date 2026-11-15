@@ -261,19 +261,29 @@ async function handleProviderRoute(req, res, key, session, path) {
   if (match) {
     if (method !== "GET") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
     const data = await providerRequest(session, `/service/@${match[1]}`);
-    if (!data.service || typeof data.service !== "object") {
-      throw new ApiError(502, "123HOST tráº£ vá» chi tiáº¿t dá»‹ch vá»¥ khÃ´ng há»£p lá»‡.");
+
+    // Chuẩn hóa response chi tiết từ 123HOST: có API trả "service",
+    // có API trả "details" hoặc bọc dữ liệu trong "data".
+    const serviceDetail =
+      data?.service ||
+      data?.details ||
+      data?.data?.service ||
+      data?.data?.details ||
+      data?.data;
+
+    if (!serviceDetail || typeof serviceDetail !== "object" || Array.isArray(serviceDetail)) {
+      throw new ApiError(502, "123HOST trả về chi tiết dịch vụ không hợp lệ.");
     }
     const safeFields = new Set([
       "id", "domain", "hostname", "name", "status", "expires", "expire", "expiredate",
       "expiration", "expiration_date", "expirationdate", "expires_at", "expiry",
       "expiry_date", "expirydate", "next_due", "nextdue", "next_due_date", "nextduedate",
-      "next_invoice", "due_date", "duedate", "date_created", "billingcycle"
+      "next_invoice", "due_date", "duedate", "date_due", "date_created", "billingcycle"
     ]);
     setSessionCookie(res, session, key);
     return {
       service: Object.fromEntries(
-        Object.entries(data.service)
+        Object.entries(serviceDetail)
           .filter(([field]) => safeFields.has(field.toLowerCase()))
           .map(([field, value]) => [field.toLowerCase(), value])
       )
