@@ -937,6 +937,7 @@
       }
 
       async function initializeApiSession() {
+        setAppSyncScreen(true);
         try {
           const session = await apiRequest("/api/session");
           apiState.authenticated = session.authenticated === true;
@@ -947,13 +948,15 @@
               console.error("Không thể tải dự án dùng chung:", error);
               notify(`Chưa thể đồng bộ dự án: ${error.message}`);
             });
-            // Tự chạy đầy đủ cùng luồng với nút Đồng bộ sau khi xác thực phiên 123HOST.
+            // Giữ màn hình chờ cho đến khi toàn bộ dữ liệu 123HOST tải xong.
             await syncAllApiData();
           } else {
             stopProjectSync();
           }
         } catch (error) {
           console.error("Không thể kiểm tra phiên 123HOST:", error);
+        } finally {
+          setAppSyncScreen(false);
         }
       }
 
@@ -978,6 +981,7 @@
           apiState.authenticated = true;
           apiState.client = { email: String(values.get("username")).trim() };
           closeModal();
+          setAppSyncScreen(true);
           render();
           notify("Đăng nhập 123HOST thành công. Đang đồng bộ dữ liệu...");
           await loadSharedProjects().catch((error) => {
@@ -1584,14 +1588,26 @@
       }
 
       // Một luồng đồng bộ dùng chung cho nút Đồng bộ và tự đồng bộ khi mở app/đăng nhập.
+      function setAppSyncScreen(visible) {
+        const splash = document.querySelector("#app-splash");
+        if (!splash) return;
+        splash.classList.toggle("is-hidden", !visible);
+        splash.setAttribute("aria-hidden", visible ? "false" : "true");
+      }
+
       async function syncAllApiData() {
         if (!apiState.authenticated) return;
-        await loadApiData();
-        // Buộc tải mới Hosting/VPS, chi tiết dịch vụ, hóa đơn và số dư như một lượt đồng bộ thủ công.
-        apiState.servicesLoaded = false;
-        apiState.invoicesLoaded = false;
-        apiState.balanceLoaded = false;
-        await loadApiHosting();
+        setAppSyncScreen(true);
+        try {
+          await loadApiData();
+          // Buộc tải mới Hosting/VPS, chi tiết dịch vụ, hóa đơn và số dư như một lượt đồng bộ thủ công.
+          apiState.servicesLoaded = false;
+          apiState.invoicesLoaded = false;
+          apiState.balanceLoaded = false;
+          await loadApiHosting();
+        } finally {
+          setAppSyncScreen(false);
+        }
       }
 
       async function runApiAction(action, target) {
@@ -1970,13 +1986,7 @@
           console.error("Không thể đăng ký service worker UVA Agency:", error);
         });
       }
-      const splash = document.querySelector("#app-splash");
-      if (splash) {
-        window.setTimeout(() => {
-          splash.classList.add("is-hidden");
-          window.setTimeout(() => splash.remove(), 260);
-        }, 850);
-      }
+      // Màn hình chờ được đóng bởi initializeApiSession/syncAllApiData sau khi đồng bộ hoàn tất.
       window.setInterval(updateHomeGreeting, 60_000);
       window.addEventListener("focus", updateHomeGreeting);
       document.addEventListener("visibilitychange", () => {
