@@ -125,9 +125,9 @@
         const text = String(value).trim();
         const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
         if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
-        const numeric = text.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
+        const numeric = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
         if (numeric) return numeric[1].padStart(2, "0") + "/" + numeric[2].padStart(2, "0") + "/" + numeric[3];
-        if (/^\\d{10}$/.test(text) || /^\\d{13}$/.test(text)) {
+        if (/^\d{10}$/.test(text) || /^\d{13}$/.test(text)) {
           const timestamp = Number(text);
           const date = new Date(text.length === 10 ? timestamp * 1000 : timestamp);
           if (!Number.isNaN(date.getTime())) {
@@ -238,11 +238,11 @@
         if (dateParts) {
           dateParts = [dateParts[0], dateParts[1], dateParts[2], dateParts[3]];
         } else {
-          const numericDate = rawDate.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
-          const vietnameseDate = rawDate.match(/^(\\d{1,2})\\s+Th(\\d{1,2}),?\\s*(\\d{4})$/i);
+          const numericDate = rawDate.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+          const vietnameseDate = rawDate.match(/^(\d{1,2})\s+Th(\d{1,2}),?\s*(\d{4})$/i);
           const parsed = numericDate || vietnameseDate;
           if (parsed) dateParts = [parsed[0], parsed[3], parsed[2], parsed[1]];
-          else if (/^\\d{10}$/.test(rawDate) || /^\\d{13}$/.test(rawDate)) {
+          else if (/^\d{10}$/.test(rawDate) || /^\d{13}$/.test(rawDate)) {
             const timestamp = Number(rawDate);
             const timestampDate = new Date(rawDate.length === 10 ? timestamp * 1000 : timestamp);
             if (!Number.isNaN(timestampDate.getTime())) {
@@ -536,7 +536,7 @@
           value !== null &&
           value !== undefined &&
           String(value).trim() !== "" &&
-          !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
+          !/^0000-00-00(?:\s|$)/.test(String(value).trim());
 
         const findExpiryField = (source) => {
           const visited = new Set();
