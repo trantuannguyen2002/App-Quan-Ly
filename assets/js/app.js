@@ -718,7 +718,13 @@
           return "";
         };
 
-        return findRenewalDate(service);
+        const serviceRenewalDate = findRenewalDate(service);
+        if (serviceRenewalDate) return serviceRenewalDate;
+
+        // Ngày gia hạn đã được đối chiếu từ hóa đơn liên kết với đúng dịch vụ.
+        // Trước đây trường invoiceRenewalDate đã được gắn vào service nhưng chưa
+        // được đọc tại đây nên giao diện vẫn báo thiếu ngày.
+        return cleanDate(service.invoiceRenewalDate);
       }
       function normalizeInvoiceDetail(data) {
         if (!data || typeof data !== "object") return null;
