@@ -337,40 +337,17 @@
           status,
           expires: getServiceExpiryValue(service)
         });
-        // Trạng thái đối chiếu theo TỪNG dịch vụ, không khóa toàn bộ danh sách
-        // trong lúc các dịch vụ khác hoặc hóa đơn vẫn đang tải.
-        const detailsPending = apiState.servicesLoaded && service._123hostDetailChecked !== true;
-        const warning = !detailsPending && expiry.category !== "active";
-        const statusText = detailsPending
-          ? status
-          : expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
-        // Hiển thị ngay ngày có sẵn từ danh sách dịch vụ hoặc chi tiết đã tải;
-        // không bắt từng Hosting chờ toàn bộ danh sách và hóa đơn hoàn tất.
         const hasExpiryDate = expiry.date !== "Chưa có thông tin";
-        const expiryText = detailsPending || expiry.days === null
+        const warning = hasExpiryDate && expiry.category !== "active";
+        const statusText = expiry.category === "expired" ? "Đã hết hạn" : warning ? "Sắp hết hạn" : status;
+        const expiryText = !hasExpiryDate || expiry.days === null
           ? ""
           : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày`
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
-        const expiryState = detailsPending
-          ? "· ĐANG ĐỐI CHIẾU"
-          : service._123hostExpiryMismatch
-            ? "· CHÊNH LỆCH DỮ LIỆU"
-            : service._123hostExpiryVerified
-              ? "· CHÍNH XÁC"
-              : service._123hostDetailExpiryAvailable
-                ? "· ĐÃ XÁC MINH TỪ 123HOST"
-                : "· CHƯA XÁC MINH";
-        const expiryStateColor = detailsPending ? "#ffad32"
-          : service._123hostExpiryMismatch ? "#ff6b6b"
-          : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8";
-        const expiryLabel = detailsPending
-          ? (hasExpiryDate
-              ? `${esc(expiry.date)} <span style="color:#ffad32;font-weight:800">· ĐANG ĐỐI CHIẾU</span>`
-              : '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>')
-          : hasExpiryDate
-            ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
-            : "Chưa xác minh được ngày từ 123HOST";
+        const expiryLabel = hasExpiryDate
+          ? esc(expiry.date)
+          : '<span style="color:#9aa9bd">Chưa có dữ liệu Expires từ chi tiết 123HOST</span>';
         const active = !warning && status.trim().toLowerCase() === "active";
         return `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">${esc(service.name || service.domain || "Dịch vụ")}</div><div class="card-caption">${esc(service.category || "Dịch vụ")} · ${esc(service.domain || "")}</div></div><span class="status-pill ${expiry.category === "expired" ? "red" : warning || !active ? "orange" : "green"}">${esc(statusText)}</span></div><div class="card-caption" style="margin-top:10px">Mã dịch vụ · ${esc(service.id)}${service.billingcycle ? ` · ${esc(service.billingcycle)}` : ""}</div><div class="card-caption" style="margin-top:8px;color:#cbd7e8;font-size:11px;font-weight:650">Ngày hết hạn / gia hạn · ${expiryLabel}</div>${expiryText ? `<div class="warning-caption" style="${warning ? "" : "color:#8392aa"}">${expiryText}</div>` : ""}</article>`;
       }
@@ -466,10 +443,10 @@
             Number(String(right.status || "").trim().toLowerCase() === "active")
               - Number(String(left.status || "").trim().toLowerCase() === "active")
           );
-          return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ đồng bộ từ tài khoản 123HOST.",`<button class="button" type="button" data-action="refresh-api">Đồng bộ</button>`)}
+          return `${heading("Dịch Vụ Hosting","Danh sách dịch vụ từ tài khoản 123HOST.",`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px"><button class="button" type="button" data-action="refresh-api"><span aria-hidden="true">👆</span> &nbsp;Đồng bộ</button><span style="font-size:10px;color:#9aa9bd;text-align:right">Bấm vào nút Đồng bộ để đồng bộ Hosting</span></div>`)}
             ${apiState.hostingSyncError ? `<div class="modal-message domain-error" role="alert">Một số dữ liệu Hosting chưa tải được: ${esc(apiState.hostingSyncError)}<br><button class="link-button" type="button" data-action="refresh-api">Thử đồng bộ lại →</button></div>` : ""}
             <div class="grid hosting-grid">
-              <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${sortedServices.map(liveServiceCard).join("") || `<div class="empty-state">${apiState.servicesLoaded ? "Tài khoản chưa có dịch vụ hosting." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
+              <section class="panel">${section("Dịch vụ đang sử dụng",`${apiState.servicesLoaded ? `${apiState.services.length} dịch vụ trong tài khoản 123HOST.` : "Đang tải dữ liệu dịch vụ..."}`,`<span class="status-pill green">Trực tiếp</span>`)}<div class="hosting-list">${sortedServices.map(liveServiceCard).join("") || `<div class="empty-state">${apiState.servicesLoaded ? "Tài khoản chưa có dịch vụ hosting." : "Bấm nút Đồng bộ để tải danh sách Hosting từ 123HOST."}</div>`}</div></section>
               <section class="panel">${section("Hóa đơn gần đây", "Chọn một hóa đơn để xem chi tiết.")}<div class="hosting-list">${apiState.invoices.map((invoice) => `<article class="hosting-card"><div class="card-heading"><div><div class="card-title">Hóa đơn #${esc(invoice.number || invoice.id)}</div><div class="card-caption">${esc(formatDate(invoice.date || ""))}${invoice.duedate ? ` · Hạn thanh toán ${esc(formatDate(invoice.duedate))}` : ""}</div></div><span class="status-pill ${String(invoice.status).toLowerCase() === "paid" ? "green" : "orange"}">${esc(invoice.status || "Chưa rõ")}</span></div><div class="card-caption" style="margin-top:9px">Tổng tiền · ${esc(formatMoney(invoice.total, invoice.currency))}</div><button class="button small" style="margin-top:10px" type="button" data-action="api-invoice" data-id="${esc(invoice.id)}">Xem hóa đơn →</button></article>`).join("") || `<div class="empty-state">${apiState.invoicesLoaded ? "Tài khoản chưa có hóa đơn." : "Đang đồng bộ từ 123HOST..."}</div>`}</div></section>
               <section class="panel">${section("Thông tin tài khoản", "Số dư và tín dụng từ 123HOST.")}<div class="modal-message">${!apiState.balanceLoaded ? "Đang tải số dư..." : apiState.balance?.details ? `Đơn vị tiền tệ: <strong>${esc(apiState.balance.details.currency || "")}</strong><br>Số dư hóa đơn: <strong>${esc(formatMoney(apiState.balance.details.acc_balance, apiState.balance.details.currency))}</strong><br>Tín dụng: <strong>${esc(formatMoney(apiState.balance.details.acc_credit, apiState.balance.details.currency))}</strong>` : "123HOST không trả về thông tin số dư."}</div></section>
             </div>`;
@@ -599,32 +576,17 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        const validDateValue = (value) =>
-          value !== null &&
-          value !== undefined &&
-          String(value).trim() !== "" &&
-          !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
-
-        const expiryKeys = new Set([
-          "expires", "expire", "expiredate", "expiry", "expirydate",
-          "expiration", "expirationdate", "dateexpire", "expireon",
-          "enddate", "renewaldate", "renewdate", "nextduedate",
-          "nextdue", "nextrenewaldate"
-        ]);
-
-        // Ưu tiên ngày hết hạn thực tế từ API chi tiết dịch vụ.
-        if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
-          const detailExpiry = findExpiryField(service._123hostServiceDetail);
-          if (detailExpiry !== "") return detailExpiry;
+        // Chỉ dùng ngày hết hạn từ API CHI TIẾT của chính dịch vụ.
+        // Không lấy ngày ở danh sách tổng hoặc hóa đơn vì có thể là ngày cũ/
+        // ngày thanh toán khác với cột Expires trên 123HOST.
+        if (service._123hostDetailChecked === true) {
+          if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
+            return findExpiryField(service._123hostServiceDetail);
+          }
+          return "";
         }
 
-        // Tiếp theo là ngày hết hạn có sẵn trong danh sách dịch vụ.
-        const serviceExpiry = findExpiryField(service);
-        if (serviceExpiry !== "") return serviceExpiry;
-
-        // Dự phòng bằng ngày đến hạn của hóa đơn đã được đối chiếu đúng dịch vụ.
-        if (validDateValue(service.invoiceRenewalDate)) return service.invoiceRenewalDate;
-
+        // Chưa có chi tiết thì không hiển thị ngày tạm từ danh sách tổng.
         return "";
       }
       function normalizeInvoiceDetail(data) {
