@@ -540,14 +540,34 @@
           ...(Array.isArray(invoice?.items) ? invoice.items : []),
           ...(Array.isArray(invoice?.items?.item) ? invoice.items.item : []),
           ...(Array.isArray(invoice?.line_items) ? invoice.line_items : []),
-          ...(Array.isArray(invoice?.products) ? invoice.products : [])
+          ...(Array.isArray(invoice?.products) ? invoice.products : []),
+          ...(invoice?.items && !Array.isArray(invoice.items) ? Object.values(invoice.items) : [])
         ];
+        const nestedValues = [];
+        const walk = (value, depth = 0) => {
+          if (depth > 5 || value === null || value === undefined) return;
+          if (typeof value === "string" || typeof value === "number") {
+            nestedValues.push(String(value).toLowerCase());
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach((entry) => walk(entry, depth + 1));
+            return;
+          }
+          if (typeof value === "object") {
+            Object.entries(value).forEach(([key, entry]) => {
+              if (/description|name|domain|hostname|service|relid|related|product|item|id/i.test(key)) walk(entry, depth + 1);
+            });
+          }
+        };
+        walk(invoice);
         const textValues = [
           invoice?.description, invoice?.notes, invoice?.item_description,
           ...itemSources.flatMap((item) => [
             item?.description, item?.name, item?.domain, item?.hostname,
             item?.service, item?.service_name, item?.domainname
-          ])
+          ]),
+          ...nestedValues
         ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
         if (serviceNames.some((name) => textValues.some((text) => text.includes(name)))) return true;
         if (serviceId && textValues.some((text) => new RegExp('(?:service|hosting|dịch vụ|#|id\\s*)\\s*' + serviceId + '(?:\\D|$)', 'i').test(text))) return true;
