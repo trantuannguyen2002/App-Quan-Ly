@@ -350,8 +350,20 @@
           : expiry.days < 0 ? `Quá hạn ${Math.abs(expiry.days)} ngày`
           : expiry.days === 0 ? "Hết hạn hôm nay"
           : `Còn ${expiry.days} ngày`;
+        const expiryState = detailsPending
+          ? "· ĐANG ĐỐI CHIẾU"
+          : service._123hostExpiryMismatch
+            ? "· CHÊNH LỆCH DỮ LIỆU"
+            : service._123hostExpiryVerified
+              ? "· DỮ LIỆU TRÙNG KHỚP"
+              : service._123hostDetailExpiryAvailable
+                ? "· ĐÃ XÁC MINH TỪ 123HOST"
+                : "· CHƯA XÁC MINH";
+        const expiryStateColor = detailsPending ? "#ffad32"
+          : service._123hostExpiryMismatch ? "#ff6b6b"
+          : service._123hostExpiryVerified || service._123hostDetailExpiryAvailable ? "#35c98a" : "#aab6c8";
         const expiryLabel = hasExpiryDate
-          ? `${esc(expiry.date)} <span style="color:${detailsPending ? "#ffad32" : service._123hostExpiryVerified ? "#35c98a" : "#aab6c8"};font-weight:800">${detailsPending ? "· ĐANG ĐỐI CHIẾU" : service._123hostExpiryVerified ? "· DỮ LIỆU TRÙNG KHỚP" : "· ĐÃ TẢI DỮ LIỆU"}</span>`
+          ? `${esc(expiry.date)} <span style="color:${expiryStateColor};font-weight:800">${expiryState}</span>`
           : detailsPending
             ? '<span style="color:#ffad32;font-weight:800">ĐANG ĐỐI CHIẾU TỪ 123HOST...</span>'
             : "Chưa xác minh được ngày từ 123HOST";
@@ -546,6 +558,40 @@
         return walk(data);
       }
 
+      function findExpiryField(source) {
+        if (!source || typeof source !== "object") return "";
+        const visited = new Set();
+        const matches = [];
+        const expiryPriority = [
+          "expires", "expirydate", "expiredate", "expirationdate",
+          "dateexpire", "expireon", "enddate", "nextduedate",
+          "nextdue", "nextrenewaldate", "renewaldate", "renewdate",
+          "expiry", "expire", "expiration"
+        ];
+        const walk = (value, depth = 0) => {
+          if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return;
+          visited.add(value);
+          if (Array.isArray(value)) {
+            value.forEach((item) => walk(item, depth + 1));
+            return;
+          }
+          for (const [key, item] of Object.entries(value)) {
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const valid = item !== null && item !== undefined &&
+              String(item).trim() !== "" &&
+              !/^0000-00-00(?:\\s|$)/.test(String(item).trim());
+            if (valid && expiryPriority.includes(normalizedKey) &&
+              (typeof item === "string" || typeof item === "number")) {
+              matches.push({ key: normalizedKey, value: item });
+            }
+            if (item && typeof item === "object") walk(item, depth + 1);
+          }
+        };
+        walk(source);
+        matches.sort((a, b) => expiryPriority.indexOf(a.key) - expiryPriority.indexOf(b.key));
+        return matches[0]?.value ?? "";
+      }
+
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
@@ -561,30 +607,6 @@
           "enddate", "renewaldate", "renewdate", "nextduedate",
           "nextdue", "nextrenewaldate"
         ]);
-
-        const findExpiryField = (source) => {
-          const visited = new Set();
-          const matches = [];
-          const walk = (value, depth = 0) => {
-            if (!value || typeof value !== "object" || depth > 12 || visited.has(value)) return;
-            visited.add(value);
-            if (Array.isArray(value)) {
-              value.forEach((item) => walk(item, depth + 1));
-              return;
-            }
-            for (const [key, item] of Object.entries(value)) {
-              const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-              if (validDateValue(item) && expiryKeys.has(normalizedKey) &&
-                (typeof item === "string" || typeof item === "number")) {
-                matches.push({ key: normalizedKey, value: item });
-              }
-              if (item && typeof item === "object") walk(item, depth + 1);
-            }
-          };
-          walk(source);
-          const preferred = matches.find((entry) => entry.key === "expires");
-          return preferred?.value ?? matches[0]?.value ?? "";
-        };
 
         // Ưu tiên ngày hết hạn thực tế từ API chi tiết dịch vụ.
         if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
@@ -913,10 +935,23 @@
               if (currentIndex < 0) continue;
 
               const detailExpiry = findExpiryField(detailData);
+              const listExpiry = findExpiryField(apiState.services[currentIndex]);
+              const detailExpiryDate = detailExpiry !== ""
+                ? getDomainExpiry({ expires: detailExpiry }).date
+                : "";
+              const listExpiryDate = listExpiry !== ""
+                ? getDomainExpiry({ expires: listExpiry }).date
+                : "";
+              const hasBothExpiryDates = detailExpiryDate !== "" &&
+                detailExpiryDate !== "Chưa có thông tin" &&
+                listExpiryDate !== "" &&
+                listExpiryDate !== "Chưa có thông tin";
               apiState.services[currentIndex] = {
                 ...apiState.services[currentIndex],
                 _123hostServiceDetail: detailData,
-                _123hostExpiryVerified: detailExpiry !== ""
+                _123hostDetailExpiryAvailable: detailExpiry !== "",
+                _123hostExpiryVerified: hasBothExpiryDates && detailExpiryDate === listExpiryDate,
+                _123hostExpiryMismatch: hasBothExpiryDates && detailExpiryDate !== listExpiryDate
               };
 
               // Cập nhật ngay từng dịch vụ để người dùng thấy kết quả, không phải chờ hết toàn bộ danh sách.
