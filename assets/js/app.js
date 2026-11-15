@@ -518,11 +518,6 @@
       function getServiceExpiryValue(service) {
         if (!service || typeof service !== "object") return "";
 
-        // Ngày đến hạn của hóa đơn gia hạn liên kết với dịch vụ là nguồn ưu tiên.
-        if (service.invoiceRenewalDate && String(service.invoiceRenewalDate).trim()) {
-          return service.invoiceRenewalDate;
-        }
-
         const findExactExpires = (source) => {
           const visited = new Set();
           const walk = (value, depth = 0) => {
@@ -555,12 +550,24 @@
           return walk(source);
         };
 
-        // Chi tiết dịch vụ gọi riêng luôn là nguồn ưu tiên hơn danh sách tổng.
+        // Nguồn chuẩn: trường Expires từ API chi tiết dịch vụ 123HOST.
+        // Không để ngày đến hạn hóa đơn cũ/mới ghi đè Expires chính thức.
         if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
-          return findExactExpires(service._123hostServiceDetail);
+          const detailExpires = findExactExpires(service._123hostServiceDetail);
+          if (detailExpires) return detailExpires;
         }
 
-        return findExactExpires(service);
+        // Chỉ dùng Expires trong danh sách dịch vụ nếu API chi tiết không có.
+        const serviceExpires = findExactExpires(service);
+        if (serviceExpires) return serviceExpires;
+
+        // Ngày đến hạn hóa đơn chỉ là phương án dự phòng khi 123HOST
+        // không trả về trường Expires ở cả danh sách lẫn chi tiết dịch vụ.
+        if (service.invoiceRenewalDate && String(service.invoiceRenewalDate).trim()) {
+          return service.invoiceRenewalDate;
+        }
+
+        return "";
       }
 
       function normalizeInvoiceDetail(data) {
