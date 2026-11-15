@@ -928,9 +928,8 @@
             if (currentScreen === "hosting") render();
           })();
 
-          // Hoàn tất toàn bộ request chi tiết trước khi gọi invoice/balance.
-          // Các request cùng lúc có thể dùng chung refresh-token của 123HOST;
-          // nếu token được xoay vòng, request song song sẽ nhận phiên cũ và bị từ chối.
+          // Chỉ bắt đầu đối chiếu ngày hết hạn sau khi đã tải xong chi tiết dịch vụ.
+          // Mọi request 123HOST vẫn chạy tuần tự để tránh tranh refresh-token.
           await detailsPromise;
 
           if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.services.length && apiState.invoices.length) {
