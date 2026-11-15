@@ -800,34 +800,55 @@
           // làm mất các _123hostServiceDetail vừa tải xong.
           const detailsPromise = (async () => {
             if (!servicesForDetails.length) return;
-            let nextIndex = 0;
-            const worker = async () => {
-              while (nextIndex < servicesForDetails.length) {
-                const index = nextIndex++;
-                const service = servicesForDetails[index];
-                const serviceId = String(service?.id ?? "").trim();
-                if (!/^\d+$/.test(serviceId)) continue;
-                try {
-                  const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
-                  if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) continue;
-                  const currentIndex = apiState.services.findIndex((item) => String(item?.id) === serviceId);
-                  if (currentIndex < 0) continue;
 
-                  // Gộp response chi tiết vào đúng dịch vụ, không ghi đè các trường đã đồng bộ.
-                  apiState.services[currentIndex] = {
-                    ...apiState.services[currentIndex],
-                    _123hostServiceDetail: detailData
-                  };
-                  if (currentScreen === "hosting") render();
+            // Gọi tuần tự để tránh các request chi tiết tranh phiên/token 123HOST.
+            for (const service of servicesForDetails) {
+              const serviceId = String(
+                service?.id ?? service?.serviceid ?? service?.service_id ?? service?.hostingid ?? ""
+              ).trim();
+              if (!/^\d+$/.test(serviceId)) {
+                failures.push(`services detail: thiếu ID hợp lệ cho ${service?.name || service?.domain || "dịch vụ"}`);
+                continue;
+              }
+
+              let detailData = null;
+              let lastError = null;
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
+                  if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) {
+                    throw new Error("123HOST trả về chi tiết dịch vụ sai định dạng.");
+                  }
+                  lastError = null;
+                  break;
                 } catch (error) {
-                  console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
+                  lastError = error;
+                  const retryable = /\b(429|500|502|503|504)\b|quá nhiều|rate.?limit|thử lại/i.test(String(error?.message || ""));
+                  if (!retryable || attempt === 2) break;
+                  await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
                 }
               }
-            };
-            await Promise.all(Array.from(
-              { length: Math.min(3, servicesForDetails.length) },
-              () => worker()
-            ));
+
+              if (lastError) {
+                failures.push(`service #${serviceId}: ${lastError.message}`);
+                console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, lastError);
+                continue;
+              }
+
+              const currentIndex = apiState.services.findIndex((item) =>
+                String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "") === serviceId
+              );
+              if (currentIndex < 0) continue;
+
+              apiState.services[currentIndex] = {
+                ...apiState.services[currentIndex],
+                _123hostServiceDetail: detailData
+              };
+              if (currentScreen === "hosting") render();
+
+              // Nhịp nghỉ nhỏ để hạn chế 123HOST throttling các ID tiếp theo.
+              await new Promise((resolve) => setTimeout(resolve, 250));
+            }
           })();
 
           // Invoice and balance requests are independent of service details.
