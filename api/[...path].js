@@ -232,7 +232,7 @@ async function handleProviderRoute(req, res, key, session, path) {
   const fixedRoutes = {
     "/api/123host/details": ["/details", ["GET"]],
     "/api/123host/domains": ["/domain", ["GET"]],
-    "/api/123host/services": ["/service", ["GET"]],
+    "/api/123host/services": ["/services", ["GET"]],
     "/api/123host/invoices": ["/invoice", ["GET"]],
     "/api/123host/balance": ["/balance", ["GET"]],
     "/api/123host/payments": ["/payment", ["GET"]],
@@ -260,7 +260,7 @@ async function handleProviderRoute(req, res, key, session, path) {
   match = path.match(/^\/api\/123host\/services\/(\d+)$/);
   if (match) {
     if (method !== "GET") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
-    const data = await providerRequest(session, `/service/@${match[1]}`);
+    const data = await providerRequest(session, `/service/${match[1]}`);
     if (!data || typeof data !== "object" || Array.isArray(data)) {
       throw new ApiError(502, "123HOST trả về chi tiết dịch vụ không hợp lệ.");
     }
