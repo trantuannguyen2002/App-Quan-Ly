@@ -355,7 +355,7 @@
           : service._123hostExpiryMismatch
             ? "· CHÊNH LỆCH DỮ LIỆU"
             : service._123hostExpiryVerified
-              ? "· ĐÃ ĐỐI CHIẾU CHÍNH XÁC"
+              ? "· CHÍNH XÁC"
               : service._123hostDetailExpiryAvailable
                 ? "· ĐÃ XÁC MINH TỪ 123HOST"
                 : "· CHƯA XÁC MINH";
