@@ -1650,13 +1650,14 @@
         let feedbackTimer = null;
         const syncTask = (async () => {
           try {
-            // Chỉ xác nhận hoàn tất khi cả dữ liệu tài khoản và Hosting đã tải xong.
-            const dataFailures = await loadApiData();
+            // Ưu tiên đồng bộ Hosting trước để kết quả Hosting không phải chờ
+            // tên miền và thông báo. Vẫn gọi tuần tự để bảo toàn refresh-token 123HOST.
             apiState.servicesLoaded = false;
             apiState.invoicesLoaded = false;
             apiState.balanceLoaded = false;
             const hostingFailures = await loadApiHosting();
-            const failures = [...dataFailures, ...(hostingFailures || [])];
+            const dataFailures = await loadApiData();
+            const failures = [...(hostingFailures || []), ...dataFailures];
 
             const requiredDataLoaded =
               apiState.domainsLastSyncedAt instanceof Date &&
