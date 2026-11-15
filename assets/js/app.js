@@ -860,16 +860,15 @@
                 ...apiState.services[currentIndex],
                 _123hostServiceDetail: detailData
               };
+
+              // Giữ nhịp gọi tuần tự ngắn để hạn chế 123HOST throttling.
+              if (servicesForDetails.length > 1) {
+                await new Promise((resolve) => setTimeout(resolve, 75));
+              }
             }
 
             // Chỉ render một lần sau khi tải xong toàn bộ chi tiết để giảm thao tác DOM.
             if (currentScreen === "hosting") render();
-
-            // Giữ nhịp gọi tuần tự ngắn để hạn chế 123HOST throttling.
-            if (servicesForDetails.length > 1) {
-              await new Promise((resolve) => setTimeout(resolve, 75));
-            }
-            }
           })();
 
           // Hoàn tất toàn bộ request chi tiết trước khi gọi invoice/balance.
