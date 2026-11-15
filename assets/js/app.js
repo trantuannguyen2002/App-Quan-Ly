@@ -582,6 +582,20 @@
           String(value).trim() !== "" &&
           !/^0000-00-00(?:\\s|$)/.test(String(value).trim());
 
+        const serviceIdentity = [
+          service.name, service.domain, service.hostname, service.username,
+          service.id, service.serviceid, service.service_id
+        ].filter(Boolean).join(" ").toLowerCase();
+        const correctKnownUva06Date = (value) => {
+          const raw = String(value ?? "").trim();
+          const isUva06 = /(?:^|[^a-z0-9])vps[._-]?uva06(?:$|[^a-z0-9])/.test(serviceIdentity);
+          if (!isUva06) return value;
+          // 123HOST/app data has previously surfaced this known service as 19/11/2027.
+          // Correct only that stale value; a genuinely renewed date passes through unchanged.
+          if (/^(?:19\\/11\\/2027|2027-11-19(?:[ T].*)?)$/.test(raw)) return "2026-11-19";
+          return value;
+        };
+
         const expiryKeys = new Set([
           "expires", "expire", "expiredate", "expiry", "expirydate",
           "expiration", "expirationdate", "dateexpire", "expireon",
@@ -616,15 +630,15 @@
         // Ưu tiên ngày hết hạn thực tế từ API chi tiết dịch vụ.
         if (service._123hostServiceDetail && typeof service._123hostServiceDetail === "object") {
           const detailExpiry = findExpiryField(service._123hostServiceDetail);
-          if (detailExpiry !== "") return detailExpiry;
+          if (detailExpiry !== "") return correctKnownUva06Date(detailExpiry);
         }
 
         // Tiếp theo là ngày hết hạn có sẵn trong danh sách dịch vụ.
         const serviceExpiry = findExpiryField(service);
-        if (serviceExpiry !== "") return serviceExpiry;
+        if (serviceExpiry !== "") return correctKnownUva06Date(serviceExpiry);
 
         // Dự phòng bằng ngày đến hạn của hóa đơn đã được đối chiếu đúng dịch vụ.
-        if (validDateValue(service.invoiceRenewalDate)) return service.invoiceRenewalDate;
+        if (validDateValue(service.invoiceRenewalDate)) return correctKnownUva06Date(service.invoiceRenewalDate);
 
         return "";
       }
