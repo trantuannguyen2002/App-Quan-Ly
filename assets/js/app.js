@@ -788,38 +788,40 @@
             failures.push(`services: ${error.message}`);
           }
 
-          // Enrich service cards in the background, with at most 3 concurrent requests.
-          // Keep the complete detail response so Expires can be read from its real field.
-          if (servicesForDetails.length) {
-            void (async () => {
-              let nextIndex = 0;
-              const worker = async () => {
-                while (nextIndex < servicesForDetails.length) {
-                  const index = nextIndex++;
-                  const service = servicesForDetails[index];
-                  const serviceId = String(service?.id ?? "").trim();
-                  if (!/^\d+$/.test(serviceId)) continue;
-                  try {
-                    const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
-                    if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) continue;
-                    const currentIndex = apiState.services.findIndex((item) => String(item?.id) === serviceId);
-                    if (currentIndex < 0) continue;
-                    apiState.services[currentIndex] = {
-                      ...apiState.services[currentIndex],
-                      _123hostServiceDetail: detailData
-                    };
-                    if (currentScreen === "hosting") render();
-                  } catch (error) {
-                    console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
-                  }
+          // Tải chi tiết TẤT CẢ dịch vụ và chờ hoàn tất trước khi đối chiếu hóa đơn.
+          // Trước đây chạy nền nhưng bên dưới lại gán một mảng services cũ,
+          // làm mất các _123hostServiceDetail vừa tải xong.
+          const detailsPromise = (async () => {
+            if (!servicesForDetails.length) return;
+            let nextIndex = 0;
+            const worker = async () => {
+              while (nextIndex < servicesForDetails.length) {
+                const index = nextIndex++;
+                const service = servicesForDetails[index];
+                const serviceId = String(service?.id ?? "").trim();
+                if (!/^\d+$/.test(serviceId)) continue;
+                try {
+                  const detailData = await apiRequest(`/api/123host/services/${encodeURIComponent(serviceId)}`);
+                  if (!detailData || typeof detailData !== "object" || Array.isArray(detailData)) continue;
+                  const currentIndex = apiState.services.findIndex((item) => String(item?.id) === serviceId);
+                  if (currentIndex < 0) continue;
+
+                  // Gộp response chi tiết vào đúng dịch vụ, không ghi đè các trường đã đồng bộ.
+                  apiState.services[currentIndex] = {
+                    ...apiState.services[currentIndex],
+                    _123hostServiceDetail: detailData
+                  };
+                  if (currentScreen === "hosting") render();
+                } catch (error) {
+                  console.warn(`Không tải được chi tiết dịch vụ 123HOST #${serviceId}:`, error);
                 }
-              };
-              await Promise.all(Array.from(
-                { length: Math.min(3, servicesForDetails.length) },
-                () => worker()
-              ));
-            })();
-          }
+              }
+            };
+            await Promise.all(Array.from(
+              { length: Math.min(3, servicesForDetails.length) },
+              () => worker()
+            ));
+          })();
 
           // Invoice and balance requests are independent of service details.
           for (const [key, path] of [
@@ -843,9 +845,22 @@
             }
           }
 
+          // Chờ toàn bộ API chi tiết dịch vụ hoàn tất để không ghi đè dữ liệu mới bằng mảng cũ.
+          await detailsPromise;
+
           if (apiState.servicesLoaded && apiState.invoicesLoaded && apiState.services.length && apiState.invoices.length) {
             try {
-              apiState.services = await attachInvoiceRenewalDates(apiState.services, apiState.invoices);
+              const servicesWithInvoices = await attachInvoiceRenewalDates(apiState.services, apiState.invoices);
+              const renewalById = new Map(servicesWithInvoices.map((service) => [
+                String(service.id),
+                { invoiceRenewalDate: service.invoiceRenewalDate, renewalInvoiceId: service.renewalInvoiceId }
+              ]));
+              apiState.services = apiState.services.map((service) => {
+                const renewal = renewalById.get(String(service.id));
+                return renewal?.invoiceRenewalDate
+                  ? { ...service, ...renewal }
+                  : service;
+              });
               render();
             } catch (error) {
               console.warn("Không thể đối chiếu ngày đến hạn hóa đơn với dịch vụ Hosting:", error);
