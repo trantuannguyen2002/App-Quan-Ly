@@ -1104,8 +1104,7 @@
         notify("Đang kết nối tài khoản 123HOST...");
         const values = new FormData(form);
         try {
-          // Hoàn tất các request của phiên trước trước khi thay cookie tài khoản.
-          await waitForApiRequests();
+          // Đăng nhập trực tiếp; không chờ các tác vụ nền cũ có thể bị treo.
           await apiRequest("/api/login", { method: "POST", body: { username: values.get("username"), password: values.get("password") } });
           resetApiAccountData();
           apiState.authenticated = true;
@@ -1812,19 +1811,19 @@
         }
         if (action === "disconnect-api") {
           let remoteLogoutConfirmed = true;
+          // Xóa phiên và dữ liệu trên giao diện ngay lập tức, không chờ tác vụ đồng bộ nền.
+          stopProjectSync();
+          resetApiAccountData();
+          render();
+          notify("Đã ngắt kết nối 123HOST.");
           try {
-            // Không để request của tài khoản cũ tiếp tục ghi dữ liệu sau khi đăng xuất.
-            await waitForApiRequests();
             const result = await apiRequest("/api/logout", { method: "POST" });
             remoteLogoutConfirmed = result.remoteLogoutConfirmed !== false;
           } catch (error) {
             console.error("Không xác nhận được thao tác đăng xuất 123HOST:", error);
             remoteLogoutConfirmed = false;
+            notify("Đã ngắt kết nối trên ứng dụng; phiên máy chủ sẽ hết hạn tự động.");
           }
-          stopProjectSync();
-          resetApiAccountData();
-          render();
-          notify(remoteLogoutConfirmed ? "Đã ngắt kết nối 123HOST." : "Đã thoát khỏi ứng dụng; 123HOST chưa xác nhận thu hồi phiên.");
           return;
         }
         if (action === "api-nameservers") {
