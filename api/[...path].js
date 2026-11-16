@@ -363,17 +363,10 @@ module.exports = async function handler(req, res) {
     }
     if (path === "/api/logout") {
       if (req.method !== "POST") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
-      const session = decryptSession(getCookie(req, COOKIE_NAME), key);
-      let remoteLogoutConfirmed = true;
-      if (session?.token) {
-        try {
-          await providerRequest(session, "/logout", { method: "POST" });
-        } catch {
-          remoteLogoutConfirmed = false;
-        }
-      }
+      // Thu hồi cookie cục bộ ngay, không phụ thuộc endpoint logout của 123HOST.
+      // Điều này cho phép đăng nhập tài khoản khác kể cả khi upstream đang chậm/lỗi.
       clearSessionCookie(res);
-      return sendJson(res, 200, { authenticated: false, remoteLogoutConfirmed });
+      return sendJson(res, 200, { authenticated: false, remoteLogoutConfirmed: false });
     }
     if (path === "/api/session") {
       if (req.method !== "GET") throw new ApiError(405, "PhÆ°Æ¡ng thá»©c khÃ´ng Ä‘Æ°á»£c há»— trá»£.");
