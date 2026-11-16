@@ -1133,6 +1133,9 @@
               submitButton.textContent = originalLabel;
             }
           }
+          // Luôn trả về giao diện chính sau khi đăng nhập, kể cả khi API trả lỗi một phần.
+          setAppSyncScreen(false);
+          render();
         }
       }
 
