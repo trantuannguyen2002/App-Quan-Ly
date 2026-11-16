@@ -963,7 +963,9 @@
                 if (currentScreen === "hosting") render();
               }
             };
-            await Promise.all(Array.from({ length: Math.min(3, servicesForDetails.length) }, () => worker()));
+            // Chạy từng chi tiết một để tránh các request đồng thời ghi đè refresh-token
+            // trong cookie phiên 123HOST, đặc biệt khi tài khoản có nhiều dịch vụ.
+            await worker();
             if (nextIndex < servicesForDetails.length) {
               failures.push("Đã hết thời gian chờ tải chi tiết một số dịch vụ; vui lòng đồng bộ lại.");
               const pendingIds = new Set(servicesForDetails.slice(nextIndex).map((item) => String(item?.id ?? item?.serviceid ?? item?.service_id ?? item?.hostingid ?? "")));
@@ -1018,6 +1020,44 @@
         }
       }
 
+      async function waitForApiRequests() {
+        const pending = [apiSyncPromise, apiLoadPromise, domainLoadPromise, hostingLoadPromise, notificationsLoadPromise].filter(Boolean);
+        if (pending.length) await Promise.allSettled(pending);
+      }
+
+      function resetApiAccountData() {
+        apiState.authenticated = false;
+        apiState.client = null;
+        apiState.domains = [];
+        apiState.services = [];
+        apiState.servicesLoaded = false;
+        apiState.hostingSyncComplete = false;
+        apiState.hostingDetailsLoaded = false;
+        apiState.hostingSyncError = "";
+        apiState.invoices = [];
+        apiState.invoicesLoaded = false;
+        apiState.balanceLoaded = false;
+        apiState.balance = null;
+        apiState.payments = {};
+        apiState.paymentsLoaded = false;
+        apiState.notifications = [];
+        apiState.notificationsLoaded = false;
+        apiState.notificationsError = "";
+        apiState.loading = false;
+        apiState.domainError = "";
+        apiState.domainSyncing = false;
+        apiState.domainsLastSyncedAt = null;
+        apiState.dnsRecordTypes = [];
+        apiState.dnsRecordTypesError = "";
+        apiState.dnsRecordTypesPromise = null;
+        apiState.dnsRecords = {};
+        apiLoadPromise = null;
+        domainLoadPromise = null;
+        hostingLoadPromise = null;
+        notificationsLoadPromise = null;
+        apiSyncPromise = null;
+      }
+
       async function initializeApiSession() {
         setAppSyncScreen(true);
         try {
@@ -1064,19 +1104,23 @@
         notify("Đang kết nối tài khoản 123HOST...");
         const values = new FormData(form);
         try {
+          // Hoàn tất các request của phiên trước trước khi thay cookie tài khoản.
+          await waitForApiRequests();
           await apiRequest("/api/login", { method: "POST", body: { username: values.get("username"), password: values.get("password") } });
+          resetApiAccountData();
           apiState.authenticated = true;
           apiState.client = { email: String(values.get("username")).trim() };
           closeModal();
           setAppSyncScreen(true);
           render();
-          notify("Đăng nhập 123HOST thành công. Đang đồng bộ dữ liệu...");
-          await loadSharedProjects().catch((error) => {
-            console.error("Không thể tải dự án dùng chung:", error);
-            notify(`Đăng nhập thành công nhưng chưa đồng bộ được dự án: ${error.message}`);
-          });
-          // Tự chạy đầy đủ cùng luồng với nút Đồng bộ ngay sau đăng nhập.
+          notify("Đăng nhập 123HOST thành công. Đang tải đầy đủ dữ liệu tài khoản...");
+          // Ưu tiên tải dữ liệu 123HOST trước; dự án dùng chung tải nền riêng,
+          // không được phép chặn danh sách tên miền, Hosting, hóa đơn và số dư.
           await syncAllApiData();
+          loadSharedProjects().catch((error) => {
+            console.error("Không thể tải dự án dùng chung:", error);
+            notify(`Đã tải dữ liệu 123HOST nhưng chưa đồng bộ được dự án: ${error.message}`);
+          });
         } catch (error) {
           console.error("Đăng nhập 123HOST thất bại:", error);
           if (loginStatus) loginStatus.textContent = error.message;
@@ -1766,30 +1810,16 @@
         if (action === "disconnect-api") {
           let remoteLogoutConfirmed = true;
           try {
+            // Không để request của tài khoản cũ tiếp tục ghi dữ liệu sau khi đăng xuất.
+            await waitForApiRequests();
             const result = await apiRequest("/api/logout", { method: "POST" });
             remoteLogoutConfirmed = result.remoteLogoutConfirmed !== false;
           } catch (error) {
             console.error("Không xác nhận được thao tác đăng xuất 123HOST:", error);
             remoteLogoutConfirmed = false;
           }
-          apiState.authenticated = false;
-          apiState.client = null;
           stopProjectSync();
-          apiState.domains = [];
-          apiState.services = [];
-          apiState.servicesLoaded = false;
-          apiState.invoices = [];
-          apiState.invoicesLoaded = false;
-          apiState.payments = {};
-          apiState.paymentsLoaded = false;
-          apiState.balance = null;
-          apiState.balanceLoaded = false;
-          apiState.notifications = [];
-          apiState.notificationsLoaded = false;
-          apiState.notificationsError = "";
-          apiState.dnsRecordTypes = [];
-          apiState.dnsRecordTypesError = "";
-          apiState.dnsRecords = {};
+          resetApiAccountData();
           render();
           notify(remoteLogoutConfirmed ? "Đã ngắt kết nối 123HOST." : "Đã thoát khỏi ứng dụng; 123HOST chưa xác nhận thu hồi phiên.");
           return;
