@@ -1110,15 +1110,16 @@
           apiState.authenticated = true;
           apiState.client = { email: String(values.get("username")).trim() };
           closeModal();
-          setAppSyncScreen(true);
+          // Không giữ splash/logo trong lúc tải toàn bộ Hosting. Hiển thị ứng dụng
+          // ngay sau khi xác thực; dữ liệu 123HOST tiếp tục đồng bộ nền.
+          setAppSyncScreen(false);
           render();
-          notify("Đăng nhập 123HOST thành công. Đang tải đầy đủ dữ liệu tài khoản...");
-          // Ưu tiên tải dữ liệu 123HOST trước; dự án dùng chung tải nền riêng,
-          // không được phép chặn danh sách tên miền, Hosting, hóa đơn và số dư.
-          await syncAllApiData();
-          loadSharedProjects().catch((error) => {
-            console.error("Không thể tải dự án dùng chung:", error);
-            notify(`Đã tải dữ liệu 123HOST nhưng chưa đồng bộ được dự án: ${error.message}`);
+          notify("Đăng nhập 123HOST thành công. Dữ liệu đang được đồng bộ nền...");
+          syncAllApiData().finally(() => {
+            loadSharedProjects().catch((error) => {
+              console.error("Không thể tải dự án dùng chung:", error);
+              notify(`Đã đăng nhập 123HOST nhưng chưa đồng bộ được dự án: ${error.message}`);
+            });
           });
         } catch (error) {
           console.error("Đăng nhập 123HOST thất bại:", error);
